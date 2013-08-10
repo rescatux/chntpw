@@ -4,8 +4,9 @@
  * This program uses the "ntreg" library to load and access the registry,
  * it's main purpose is to reset password based information.
  * It can also call the registry editor etc
- 
- * 2011-jul: Command line options for non-interactive support
+
+ * 2013-aug: Command line options for non-interactive support : User promotion
+ * 2011-jul: Command line options for non-interactive support : Blank password
  * 2011-apr: Command line options added for hive expansion safe mode
  * 2010-jun: Syskey not visible in menu, but is selectable (2)
  * 2010-apr: Interactive menu adapts to show most relevant
@@ -76,12 +77,14 @@
 #include "ntreg.h"
 #include "sam.h"
 
-const char chntpw_version[] = "chntpw-NG version 0.99.7 071111 , (c) Adrian Gibanel";
+const char chntpw_version[] = "chntpw-NG version 0.99.8 081113 , (c) Adrian Gibanel";
 
 extern char *val_types[REG_MAX+1];
 
 /*Automatic option for blanking password*/
 int automaticblank = 0;
+/*Automatic option for promoting user*/
+int automaticpromote = 0;
 
 /* Global verbosity */
 int gverbose = 0;
@@ -656,20 +659,28 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
 	  (acb & 0x8000) ? " [probably locked now]" : ") [seems unlocked already]");
    printf(" q - Quit editing user, back to user select\n");
 
-   if (automaticblank == 1) {pl = 1 ; *newp = '1';} else {
+   if (automaticblank == 1) {pl = 1 ; *newp = '1';}
+   if (automaticpromote == 1) {pl = 3 ; *newp = '3';}
+   
+   if (automaticblank <> 1) && (automaticpromote <> 1)
+   {
      pl = fmyinput("Select: [q] > ",newp,16);
    }
 
    if ( (pl < 1) || (*newp == 'q') || (*newp == 'Q')) return(0);
 
    if (*newp == '3') {
-     printf("NOTE: This function is still experimental, and in some cases it\n"
-	    "      may result in stangeness when editing user/group in windows.\n"
-	    "      Also, users (like Guest often is) may still be prevented\n"
-	    "      from login via security/group policies which is not changed.\n");
-     fmyinput("Do you still want to promote the user? (y/n) [n] ",yn,2);
-     if (*yn == 'y' || *yn == 'Y') {
-       promote_user(rid);
+     if (automaticpromote <> 1) {
+	printf("NOTE: This function is still experimental, and in some cases it\n"
+		"      may result in stangeness when editing user/group in windows.\n"
+		"      Also, users (like Guest often is) may still be prevented\n"
+		"      from login via security/group policies which is not changed.\n");
+	fmyinput("Do you still want to promote the user? (y/n) [n] ",yn,2);
+	if (*yn == 'y' || *yn == 'Y') {
+	  promote_user(rid);
+	}
+     } else {
+        promote_user(rid);
      }
      return(username);
    }
@@ -1190,6 +1201,7 @@ void usage(void) {
 	  " -e          Registry editor. Now with full write support!\n"
 	  " -d          Enter buffer debugger instead (hex editor), \n"
 	  " -b          Choose blank of the password automatically, \n"
+	  " -p          Choose user promotion to Administrator automatically, \n"
           " -v          Be a little more verbose (for debuging)\n"
 	  " -L          For scripts, write names of changed files to /tmp/changed\n"
 	  " -N          No allocation mode. Only same length overwrites possible (very safe mode)\n"
@@ -1211,11 +1223,12 @@ int main(int argc, char **argv)
    char iwho[100];
    FILE *ch;     /* Write out names of touched files to this */
    
-   char *options = "LENbidehlvu:";
+   char *options = "LENbpidehlvu:";
    
    printf("%s\n",chntpw_version);
    while((c=getopt(argc,argv,options)) > 0) {
       switch(c) {
+       case 'p': automaticpromote = 1; break;
        case 'b': automaticblank = 1; break;
        case 'd': dodebug = 1; break;
        case 'e': edit = 1; break;
