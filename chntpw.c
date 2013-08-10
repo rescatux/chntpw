@@ -662,7 +662,7 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
    if (automaticblank == 1) {pl = 1 ; *newp = '1';}
    if (automaticpromote == 1) {pl = 3 ; *newp = '3';}
    
-   if (automaticblank <> 1) && (automaticpromote <> 1)
+   if ((automaticblank != 1) && (automaticpromote != 1))
    {
      pl = fmyinput("Select: [q] > ",newp,16);
    }
@@ -670,7 +670,7 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
    if ( (pl < 1) || (*newp == 'q') || (*newp == 'Q')) return(0);
 
    if (*newp == '3') {
-     if (automaticpromote <> 1) {
+     if (automaticpromote != 1) {
 	printf("NOTE: This function is still experimental, and in some cases it\n"
 		"      may result in stangeness when editing user/group in windows.\n"
 		"      Also, users (like Guest often is) may still be prevented\n"
