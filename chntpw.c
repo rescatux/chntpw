@@ -5,6 +5,7 @@
  * it's main purpose is to reset password based information.
  * It can also call the registry editor etc
  
+ * 2011-jul: Command line options for non-interactive support
  * 2011-apr: Command line options added for hive expansion safe mode
  * 2010-jun: Syskey not visible in menu, but is selectable (2)
  * 2010-apr: Interactive menu adapts to show most relevant
@@ -75,9 +76,12 @@
 #include "ntreg.h"
 #include "sam.h"
 
-const char chntpw_version[] = "chntpw version 0.99.6 110511 , (c) Petter N Hagen";
+const char chntpw_version[] = "chntpw-NG version 0.99.7 071111 , (c) Adrian Gibanel";
 
 extern char *val_types[REG_MAX+1];
+
+/*Automatic option for blanking password*/
+int automaticblank = 0;
 
 /* Global verbosity */
 int gverbose = 0;
@@ -652,7 +656,9 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
 	  (acb & 0x8000) ? " [probably locked now]" : ") [seems unlocked already]");
    printf(" q - Quit editing user, back to user select\n");
 
-   pl = fmyinput("Select: [q] > ",newp,16);
+   if (automaticblank == 1) {pl = 1 ; *newp = '1';} else {
+     pl = fmyinput("Select: [q] > ",newp,16);
+   }
 
    if ( (pl < 1) || (*newp == 'q') || (*newp == 'Q')) return(0);
 
@@ -1183,6 +1189,7 @@ void usage(void) {
 	  " -i          Interactive. List users (as -l) then ask for username to change\n"
 	  " -e          Registry editor. Now with full write support!\n"
 	  " -d          Enter buffer debugger instead (hex editor), \n"
+	  " -b          Choose blank of the password automatically, \n"
           " -v          Be a little more verbose (for debuging)\n"
 	  " -L          For scripts, write names of changed files to /tmp/changed\n"
 	  " -N          No allocation mode. Only same length overwrites possible (very safe mode)\n"
@@ -1204,11 +1211,12 @@ int main(int argc, char **argv)
    char iwho[100];
    FILE *ch;     /* Write out names of touched files to this */
    
-   char *options = "LENidehlvu:";
+   char *options = "LENbidehlvu:";
    
    printf("%s\n",chntpw_version);
    while((c=getopt(argc,argv,options)) > 0) {
       switch(c) {
+       case 'b': automaticblank = 1; break;
        case 'd': dodebug = 1; break;
        case 'e': edit = 1; break;
        case 'L': logchange = 1; break;
