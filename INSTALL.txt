@@ -1,0 +1,48 @@
+
+The Offline NT Password & Registry Editor
+
+(c) 1997-2011 Petter Nordahl-Hagen
+
+This file is meant for developers.
+
+General usage is via the provided boot CD images, but
+static linux builds of the tools are also available
+in the source zip file.
+
+See REAMDE for general instructions and license info,
+HISTORY.txt for version info.
+
+If you want to build yourself, it should compile
+with most gcc compilers. However, I am not particulary good
+with types, so there may be some warnings.
+
+You may have to install the openssl-devel package from you
+linux distro to compile/link, since I need the static variant.
+(change the makefile to link dynamic if you wish)
+I link statically with libcrypto.a from OpenSSL.
+(chntpw only, other tools does not require crypto)
+
+Thanks to Denis Ducamp for modifying chntpw to use OpenSSL.
+
+Thanks to Mike Doty, via Alon Bar-Lev for 64 bit build compatible patch.
+ (from http://bugs.gentoo.org/show_bug.cgi?id=185411)
+
+Look into Makefile, you may need to change things to fit your env.
+(also if you need 64 bit)
+
+If make goes well, you should have:
+ chntpw - Password tool, dynamic with libc, static with OpenSSL
+ chntpw.static - Completely static passord tool
+ reged - Registry edit tool, dynamic linked with libc. No crypto.
+ reged.static - Registry too, statically linked.
+ cpnt - Simple copy utility, does not truncate file on write
+        Now deprecated, was at least needed earlier for NTFS writes.
+
+Also, the floppies and CDs are build under a different
+environment for small libc size (uClibc), see website
+for details. (build scripts not currently available..)
+
+So, note that the binary then contains cryptographic code
+which may be illegal for you to export.
+
+Good luck.

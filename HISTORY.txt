@@ -1,0 +1,316 @@
+
+The Offline NT Password Editor
+
+(c) 1997-2011 Petter Nordahl-Hagen
+
+See README for general info, copyright & credits.
+See INSTALL for compile/installation instructions.
+
+Revision history 
+(tools only, see website for info on bootdisk revisions)
+
+* v 0.99.6 110511
+
+regedit library (chntpw and reged uses it):
+- Hive expansion! Library now does hive file expansion by
+  default! (but you can turn it off, safe mode). If expansion occured, you
+  will get a warning when saving the hive.
+- There were a lot of goofs by me in the add/delete key and value
+  handling, which made windows complain and lose data. Hope I managed
+  to fix them.
+- Also, found out more about how Windows does things, for example:
+  - Empty name (default) value, flag field is 0 (not 1 as usual)
+  - Values with data size 0 to 4 the value data itself is stored in
+  the data pointer field, typical for DWORD (this I knew a long time
+  ago), sign bit of data size field is then set. BUT..
+  - In a lot of cases in SAM, for null name values, size is 0 with sign
+  set. In that case, the data dword is stored in the TYPE field,
+  and the rest is unused. This saves a few bytes of course.. but why?
+  The rest of the stuff registry is used for is often seriously bloated
+  anyway. Did the guys at MS who actually wrote the SAM stuff back
+  in the NT3 days actually do it because they cared? or just because
+  they found something new and exiting they smoked? :)
+  - Large values (seems to be from around 16k) are split internally in
+  several parts. Sounds smart. But it goes via 2 (two) separate data
+  structures that has to be allocated.
+  For regular small values the data pointer simply points to the data
+  itself. For this split large value it points to a "db" struct. This
+  contais a count of how many parts there are. And then the list of
+  pointers to the data parts? Nope. It points to another area where
+  the list of pointers are stored.
+  Pseudo: vk.ofs_data -> db.list -> list[n] -> raw data block n
+  The last raw data block always allocates the whole hbin (usually
+  16k) it is in, even if all of it is not needed. Of course only the correct
+  amount of data is copied out based on the value length.
+  On new Vista64 bit SP2, this happens at least 2 times in
+  SOFTWARE\Microsoft tree.
+reged:
+- On popular demand: .reg file import!! (-I)
+- Will read files from regedit.exe in most cases
+  (UTF-16) but can miss on some international characters. Also reads
+  "latin" (8 bit) files.
+- Only one .reg and hive at a time supported.
+- Did quite a lot of testing by importing for example the
+  SOFTWARE\Classes tree with regedit.exe and importing it again into
+  the DEFAULT hive with my tool, then ask windows to "Load hive" (in
+  regedit.exe). If it does not complain in the event log, it is good.
+  (Also, seems like windows has gotten better at not bluescreening on
+  a corrupt registry hive, did not get a single one when doing this
+  with pretty messed up hives in win7 and Vista)
+- Be aware that .reg import is currently very slow, since I messed
+  up the design for the string reading badly, and also the add routines is
+  not exactly optimized. Consider it a proof of concept! Example:
+  Import of SOFTWARE\Microsoft tree (exported by regedit.exe) into the
+  small DEFAULT hive took more than 10 minutes on a pretty fast
+  machine. Especially hex data is slow (one byte at a time.. lazy me..)
+- WARNING: .reg file import does not do much sanity checking of the
+  input .reg file. It will either crash during import or mess up
+  the registry if the .reg file is bad.
+- WARNING2: Limitation: Be careful when importing keys that has large
+  number of subkeys (like several 1000) since it does not split up
+  into indirect indexes (lh) yet, and windows may not like it.
+- -N and -E options for safe mode edit (no alloc and no expand hive)
+- Importing (-I) and then into edit (-e) before save possible, 
+  by specifying both options.
+- -I and -C (-IC) will import and auto-save, use this in scripts.
+chntpw:
+- This version has no significant changes in the password (reset)
+  handling part of the tools.
+TODO list:
+- Windows like API. Faster .reg import. Fix bugs! Maybe not in that
+order :)
+
+
+* v 0.99.6 100627
+ chntpw:
+ - Syskey not visible in menu anymore, but is still selectable as # 2
+   This because too many people just went ahead without understanding
+   its purpose, and the emailed me when things went as expected, that
+   is it went *boom*
+ - Interactive menu adapts to show most relevant selections based
+   on what is loaded
+ reged:
+ - Patches from Frediano Ziglio adding or fixing:
+   buffer overflow in export_subkey printing keyname
+   some quoting error (name and string values must be quoted)
+   missing support for wide character encoding in keys and value names
+ regedit library (chntpw and reged uses it):
+ - New function from  Aleksander Wojdyga: dpi, to decode product IDs
+   Can be used on for example \Microsoft\Windows NT\CurrentVersion\DigitalProductId
+   to find the systems product ID in cleartext.
+   Now as command in registry editor, but may be moved to chnpw menu later.
+
+* v 0.99.6 080526
+ reged:
+ - NEW TOOL: It's actually just the interactive registry edit
+   (still also available in chntpw) plus
+   the registry export to .reg-file from command line.
+   This tool contains no password functions, thus no crypto.
+ chntpw:
+ - Interactive reg ed moved out of chntpw, into edlib.c
+ - 64 bit compatible patch by Mike Doty, via Alon Bar-Lev
+          http://bugs.gentoo.org/show_bug.cgi?id=185411
+ - Some minor tweaks and fixes
+ ntreg library:
+ - Type QWORD (XP/Vista and newer) now recognized
+ - Most functions accepting a path now also have a parameter specifying if
+   the search should be exact or on first match basis, thus
+   this libary version breaks build with older programs.
+ - Fixed bug which skipped first indirect index table when deleting keys,
+   usually leading to endless loop when recursive deleting.
+ - Export to .reg file by Leo von Klenze, expanded a bit by me.
+ - 64 bit compatible patch by Mike Doty, via Alon Bar-Lev
+   http://bugs.gentoo.org/show_bug.cgi?id=185411
+ - A few other small fixes and tweaks.
+
+* v 0.99.5 070923
+ - User edit is now menu-driven, better visuals / tables / listings.
+ - Group memberships are listen on the user
+ - User promotion (put into admin group) is now public, with it's own
+   menu selection in the user menu. Still considered EXPERIMENTAL!
+ - Some other verbosity/visual changes
+ - Changed the verbosity (-v) option to be more useful for debug
+   or advanced information
+ 
+* v 0.99.4 070406 (decade)
+ - 10 year anniversary!
+ - Changed to GPL license
+ - Support for Windows Vista was already there, but only blanking
+   password works.
+ - Some small insignificant changes, mainly to output or text.
+
+* v 0.99.3 041205
+ - Fixed bug in loadhive(), caused a crash when last page pointer
+   was out of range, which seems to happen a lot on some
+   installations. Guess it is correct to just assume it is
+   end of file. Thanks to Michael Rothstein for supplying a
+   hive with this.
+
+* v 0.99.3 040818
+ chntpw:
+ - Lot of nasty bugs fixed in REG_SZ and REG_MULTI_SZ input, often
+   trashed the heap, leading to later crashes.
+ - New regedit command "hex" to see value in hexdump regardles
+   of type.
+ - Some other minor fixes on hive load.
+ ntreg: Major bugfixes in key add/delete,
+        and support for more of the registry:
+ - Now full support of key add/del on NT351 ('li' index)
+   as a bi-effect this also adds support for NT4/win2k edits
+   in keys with indirect index (when it contains ~>500 subkeys)
+   since the index tables then switches from 'lf' (semi-hashed)
+   to 'li' (unhashed table).
+ - WinXP and newer uses 'lh' (true hash) always, even when going
+   via indirect tables ('ri'). I wasn't aware of this, so reading
+   or traversing that in earlier versions usually crashed.
+ - Critical bugs fixed in the allocation of space in the hive,
+   older versions may in several occations corrupt the hive.
+ - Fixed some hive load bugs, deallocate properly on close etc.
+
+* v 0.99.2 040105
+ - Added RecoveryConsole parameter change
+ - Try to guess type of hive loaded (sam, system, security etc), this
+   is used by the user edit, syskey edit, RecoveryConsole edit
+   to look up into the right hive.
+ - Do not confirm save if the change-tracking option is set (-L)
+   (assume wrapper does it..)
+ - Hid the hash-stuff during password reset. I got all kinds of
+   confusing questions about it (most often: can I find the original
+   pw? Answer: NO if win2k or higher)
+   Option -v turns this on again for debugging.
+ - Also reduced some other debug output, -t and/or -v turns on again
+   most of it.
+ - Fixed some bugs:
+   - check of return value from open()
+   - corrected prototype defs for some calls into OpenSSL,
+     this fixes some compilation errors people have reported.
+   Thanks to Alexander Poquet for that.
+ - Probably _added_ more bugs :-} but they are yet unknown :)
+
+* v 0.99.1 030126
+ - Fixed bug in ntreg, seems some files has garbage instead of zero
+   pages at end. Now stops enumerating on first non 'hbin' page.
+   Thanks to Jim Andersen for giving me a hive file that showed this.
+ - Reports strongly indicates that blanking a password
+   (* at the prompt) works more often than changing passwords.
+   Changed some wording regarding this.
+
+* v 0.99.0 030112
+ - There is now full registry edit support with expansion of value
+   size and add / delete of keys and values!
+   See regedit.txt for more info on registry editing
+   See source for details on data block allocation etc in registry.
+ - Changed interactive mode (-i) a bit, now features menues.
+ - Syskeystatus/change not shown unless selected from menu.
+ - New option: -N to set it in old-edit mode, ie only exact
+   overwrites. This is for safety in testing etc.
+
+* v 0.98.6 021213
+ - Added parsing of users F and SAMs F value, which stores account type bits
+   and lockout information. Ability to reset it if locked.
+ - As usual, see source (especially sam.h for details) on this.
+
+* v 0.98.5 021208
+ - Added ability to enter RID (in hex) instead of username by
+   starting the entry with 0x. Works interactive and on commandline.
+   This will enable edit of users that has names which actually
+   use unicode, like some russian and asian systems.
+-  Only entering * for password will blank password by setting
+   hash lengths to zero. Seems to be working ok in 2k and XP.
+   This may also clear up an earlier failed change.
+   One bug/drawback: Seems to leak about 30-50 bytes in the V struct.
+-  Fixed bug in handling of blank LANMAN-pass.
+
+* v 0.98.4 011022
+ - Fixed input buffer overflow that made it impossible to enter
+   usernames at 16 chars (the \n would flow over into the password
+   prompt thus not changing it)
+ - New option -L that will write the names of changed hives to
+   /tmp/changed. Mainly for use in my bootfloppy scripts.
+
+* v 0.98.3 010808
+ - Blank password detection rewritten. The NT or LANMAN hash seems
+   to actually be missing from the sam entry if password is blank.
+   This will now be detected, and if only LANMAN is present, it
+   will be convertet to NT password.
+ - Some minor changes in text & prompts.
+
+* v 0.98.2 010107
+ - Changed to use OpenSSL for MD4 & DES encryption instead of
+   the old libraries. Only change of build process from source
+   is to point the Makefile to wherever your OpenSSL libraries & includes are.
+ - Minor changes in wording of Syskey warnings.
+ - No functional changes.
+ - Known bugs: Hive statistics often wrong (but the numbers are not used
+   later, so it's not critical)
+
+* v 0.98.1 000607
+
+ - Discovered that when a key has lots of subkeys (typically about
+   300 or more?) its hashtable is split and accessed through an
+   indirect ('ri') table, almost as some filesystems do with
+   datablock lists on large files. This caused an error "Not 'nk' node"
+   and sometimes a crash in earlier versions. In SAM this happens in
+   \SAM\Domains\Account\Users when the number of users are large
+   (which often is the case on domain controllers).
+   See source code for technical details on this. (WinReg.txt not updated)
+
+* v 0.98 000401
+
+ - Disabling syskey on Win2000 corrupts the SAM somehow, makes it
+   unable to reenable + leaves it in a partial mode 1 syskey.
+   Also corrupts the Domain Trust password, making it impossible
+   to join og leave a domain.
+   Delete HKLM\SECURITY\Policy\Secrets\$MACHINE.ACC (the trust key,
+   may need to change ACLs to get to it) to leave the domain and make it
+   possible to rejoin.
+ - Added support for changing passwords without disabling or
+   changing syskey, simply by inserting old type password hash
+   into the sam. It gets converted to syskey-hash on next boot.
+   Why I didn't discover this before is beyond me.
+ - A few smaller bugfixes.
+
+* v 0.98 000215
+
+ - Can now write, too, but only existing values, & same datalength.
+ - Internals rewritten, registry manipulation functions
+   now in separate "library".
+ - Added ability to check for and disable syskey. (see syskey.txt
+   & sourcecode for details)
+ - "Command line"-type registry-editor improved a bit.
+ - Possible to load and edit several hives at once
+ - Several minor changes.
+ - Since a lot has been rewritten, there's probably more bugs.
+
+* v 0.90 990307
+
+Major updates:
+
+ - Full registry parse/read/viever. Can follow the tree like a filesystem.
+   No write-support yet.
+ - 3.51 & 4.0 support. Seems to be working on NT5 betas, too.
+ - 100% sure to find usernames/passwords.
+ - Support for localized admin-names (will automatically find it)
+ - Several minor bugs from earlier versions fixed.
+ - Sorry, but still no syskey support. (but since full registry
+   read capabilities exsist, it's now easier to make it)
+
+* PRE-1 970611
+ - Got reports on "Netlogon service not started"
+   (and then it was impossible to logon)
+   if attempt to change blank password into something else. 
+   This was because if the password is set blank (from NT), the NT-logon
+   hash (md4) is not stored in SAM at all (the LANmanager hash seems to be
+   there..) However, chntpw didn't know about this, and happily(?) wrote away
+   and corrupted the SAM file, causing Netlogon to fail.
+   This version will flag accounts with blank passwords, and refuse to change it.
+
+ - The -i (interactive) option now loops. Will ask for a new name repeatedly,
+   until '!' is entered. This enables you to change multiple passwords in
+   one run.
+ 
+ - No support for syskey, yet.
+
+* PRE-1 970528:
+ - First public release
+

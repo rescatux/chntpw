@@ -1,0 +1,124 @@
+The Offline NT Password Editor
+
+(c) 1997-2002 Petter Nordahl-Hagen
+
+Update: 08 dec 2002
+
+What happens when syskey is installed, and how to get rid of it
+---------------------------------------------------------------
+
+Background:
+-----------
+
+Syskey was added to NT with Service Pack 3 as a way to prevent easy
+access to the actual password hashes in the SAM (Security Accounts Manager)
+The original methods of making and storing the hashes makes it
+rather easy to bruteforce or dictionary-attack it to find the plaintext
+passwords. (mostly caused by a somewhat flawed implementation & use
+of the cryptoalgorithms involved, but that's discussed elsewhere)
+Enabling syskey is optional, the administrator must run syskey.exe and
+answer some dialog-boxes to turn it on. On Windows 2000 it's not optional
+anymore, it's enabled by default at installation time.
+
+When syskey is active, the hashes are encrypted/obfuscated yet
+another time before being stored in the SAM registry.
+However, they're stored in the old form in memory after boot
+(pwdump2 demonstrates this),
+since the old form is needed for NTLM authentication on the network etc.
+
+The key that obfuscates the hashes, or rather it looks like something
+that decrypts the key, can be stored on floppy, generated from a
+passphrase to be entered at boot, or stored (obfuscated again) in
+the registry.
+
+There's no official supported method to switch off syskey
+once activated, except restoring the registry from a rescuefloppy
+made before activation of syskey.
+
+So.. what's this got to do with my utility?
+-------------------------------------------
+
+My utility doesn't try to crack passwords, it puts new hashes into
+the SAM, thus changing a users password. And it does this offline.
+Syskey was a showstopper for this.
+As far as I can see, there's 2 ways to solve this:
+
+1) Find the key in registry, get user to enter it, or get hold of floppy
+   then use the syskey on the new password too. However, it's not documented
+   and I haven't found any reverse engineering of it anyplace.
+
+2) Try to turn it off. This has one drawback, and one good side:
+   Bad: all passwords must be reset, since the old hashes will be invalid.
+   VeryBAD: SWITHCHING OFF IN WINDOWS 2000 AND XP NOT PERFECT,
+            WILL CAUSE TROUBLE, but you can access the computer
+            afterwards. Domain relationships & syskey may be
+            impossible to change after this, requiring a reinstall
+            (or possibly only an upgrade)
+   Good: There's no need for the key (which may be lost).
+
+3) (NEW 2000-04-01, no, not a joke) Insert old styles password-hashes
+   into the SAM, will be converted to syskey-hashes on next boot.
+   This is how syskey is enabled on NT4, the hashes won't be touched
+   until the first reboot after turning on syskey.
+
+I've found out how to do #2 and #3.
+
+What happens when syskey is turned on, and how to turn it off again:
+--------------------------------------------------------------------
+
+- 1 -
+Serveral new keys are added to HKLM\System\CurrentControlSet\Control\Lsa,
+it seems that most of the keys/values is used for the obfuscation of the key
+they change when syskey is updated.
+However the value named 'SecureBoot' holds the mode of syskey:
+  1 - Key in registry
+  2 - Enter passphrase
+  3 - Key on floppy
+
+But removing this key (or setting it to 0) isn't enough to disable
+syskey. There's more..
+
+- 2 -
+HKLM\SAM\Domains\Account\F is a binary structure usually containing the computer
+SID and some other stuff related to that.
+When syskey is installed it's expanded (about twice the size), with something
+I guess is the key heavily encrypted + some flags and other values.
+One of these other flag/values also contains the same mode as SecureBoot above.
+
+So.. resetting this mode flag and SecureBoot to 0 is all that's needed
+to switch off syskey in NT4 (up to SP6 at time of writing). Changing only one of them
+results in a warning about inconsistencies between the SAM and system settings
+on completed boot, and syskey is re-invoked.
+
+- 3 -
+On Windows 2000 there's yet another place info about syskey is stored:
+
+HKLM\security\Policy\PolSecretEncryptionKey\<default>
+which also is a binary structure, but also there the mode is stored.
+Reset this to 0, and syskey is gone on win2k.
+(if there's a mismatch between the three, it silently resets them
+ to the most likely value on boot)
+
+- 4 -
+Then there's the password hashes.
+The usual (old) hashlength is 16 bytes, but all hashes are expanded to 20 bytes
+with syskey, the first 4 bytes looks like some kind of counter. (maybe
+history-counter?).
+Strangely, they're not updated at once when syskey is turned on,
+update of the hashes happens during next reboot after syskey has been turned on.
+And when the key is later updated, the hashes are also updated?
+NO!! Strangely it SEEMS like the password hashes REMAINS THE SAME!
+(however, the binaries in the 3 keys noted above changes..)
+I'll try to dig more into this. Help wanted :)
+
+When syskey has been switched off, all passwords must be reset.
+My utility will write and adjust hash-lengths of the users (usually
+administrator) that you reset the password for.
+NT itself will fix the rest of the hashes when you set new passwords
+from NT.
+
+And yes, it's possible to re-enable syskey after turning it off.
+(not on win2k, yet!)
+
+So, anybody reverse engineered the whole syskeystuff?
+(yes, I know something's on it's way..)

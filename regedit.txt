@@ -1,0 +1,438 @@
+The Offline NT Password Editor
+
+(c) 1997-2011 Petter Nordahl-Hagen
+
+Registry Editor Usermanual/docs
+
+See COPYING for copyright & credits.
+See INSTALL for compile/installation instructions.
+See README for docs on the passwordpart (or website for bootdisk)
+
+Some known limitations as of first half 2011:
+This release features full basic registry edit with
+add/del keys and values and resizing values, and also
+expanding the file.
+Renaming keys and values is not implemented yet.
+Import is slow. Export is fast.
+
+Program "reged" is used for interactive registry edit
+(rudimentary command prompt type interface)
+or to export or import .reg files.
+Import and export can also be scripted (non-interactive)
+
+The "chntpw" program which is for password edits, also
+contains the editor, but not the import / export.
+
+Usage of "reged":
+
+  reged version 0.1 110504, (c) Petter N Hagen
+
+  Modes:
+  -x <registryhivefile> <prefixstring> <key> <output.reg>
+     Xport. Where <prefixstring> for example is HKEY_LOCAL_MACHINE\SOFTWARE
+     <key> is key to dump (recursively), . or \ or \\ means all keys in hive
+     Only one .reg and one hive file supported at the same time
+  -I <registryhivefile> <prefixstring> <input.reg>
+     Import from .reg file. Where <prefixstring> for example is HKEY_LOCAL_MACHINE\SOFTWARE
+     Only one .reg and one hive file supported at the same time
+  -e <registryhive> ...
+     Interactive edit one or more of registry files
+
+  Options:
+  -L : Log changed filenames to /tmp/changed, also auto-saves
+  -C : Auto-save (commit) changed hives without asking
+  -N : No allocate mode, only allow edit of existing values with same size
+  -E : No expand mode, do not expand hive file (safe mode)
+  -t : Debug trace of allocated blocks
+  -v : Some more verbose messages
+
+
+-x will do export to .reg file.
+It will create files that seems to be compatible with regedit.exe in
+Windows.
+The prefix is the first part of the key names that windows shows/uses,
+it is not stored in the hive files, so you can actually put in
+anything unless you have to import in Windows.
+Current version only handles one set of files at a time (and also only
+one point to start export from in it)
+
+-I does import of .reg files into the specified hive file.
+It supports .reg files from Windows regedit.exe, they are usually
+UTF-16 (16 bit characters) and in the few cases I tested it will
+import with correct characters. Please note that the key and value
+names always are 8 bit in the registry, but strings the values store
+are 16 bit characters.
+Will also work with latin-1 (8 bit) character files, like the export
+functions creates, but again some character conversions may be wrong.
+Note that the current versions are pretty slow, since they are not
+optimized or well written in any way. Around 90000 keys with 120000
+values just took around 10 minutes on my pretty fast machine.
+(I am lazy! You don't write hex reads with one byte at a time do you? :)
+
+-e goes into interactive editor (see below for old example)
+-e can be combined with -I so that the editor is entered before saving
+-after an import.
+
+-N and -E are safe modes, can be used with any mode.
+-C must be used when importing to auto-save, else it will ask first if
+import succeeds.
+The -L option will write changed hive file names to /tmp/changed,
+I use it for scripts that need to know.
+
+
+------------------------
+
+
+Here is an old demo of registry edit, via the chntpw program,
+but regedit is the same (except some new stuff is in there)
+
+
+You can navigate the registry almost like a filesystem (only difference
+being that the "files" actually are of a special datatype, instead of
+just a bytestream)
+Note that this demo is just some random editing, will likely
+cause windows to not boot if written back to it.
+
+>chntpw -h
+chntpw version 0.99.0 030111, (c) Petter N Hagen
+chntpw: change password of a user in a NT SAM file, or invoke registry editor.
+chntpw [OPTIONS] <samfile> [systemfile] [securityfile] [otherreghive] [...]
+ -h          This message
+ -u <user>   Username to change, Administrator is default
+ -l          list all users in SAM file
+ -i          Interactive. List users (as -l) then ask for username to change
+ -e          Registry editor. Now with full write support!
+ -d          Enter buffer debugger instead (hex editor), 
+ -t          Trace. Show hexdump of structs/segments. (deprecated debug function)
+ -L          Write names of changed files to /tmp/changed
+ -N          No allocation mode. Only (old style) same length overwrites possible
+
+   (example edit of a SYSTEM-hive)
+>chntpw -e system
+chntpw version 0.99.0 030111, (c) Petter N Hagen
+Hive's name (from header): <SYSTEM>
+ROOT KEY at offset: 0x001020
+This is probably not a sam HIVE
+Simple registry editor. ? for help.
+
+[1020] > ?
+
+Simple registry editor:
+hive [<n>] - list loaded hives or switch to hive numer n'
+cd <key> - change key
+ls | dir [<key>] - show subkeys & values,
+cat | type <value> - show key value
+st [<hexaddr>] - show struct info
+nk <keyname> - add key
+dk <keyname> - delete key (must be empty. recursion not supported yet)
+ed <value>            - Edit value
+nv <type> <valuename> - Add value
+dv <valuename>        - Delete value
+delallv               - Delete all values in current key
+debug - enter buffer hexeditor
+q - quit
+
+  (list the contents of the current key)
+
+[1020] > l
+ls of node at offset 0x1024
+Node has 6 subkeys and 0 values
+offs          key name
+[  11b8]   <ControlSet001>
+[ dff88]   <ControlSet002>
+[1c2040]   <LastKnownGoodRecovery>
+[ de448]   <MountedDevices>
+[ de998]   <Select>
+[ deab8]   <Setup>
+
+  (keynames & valuenames may be abbreviated, first match is used!)
+  (also, it's case sensitive, but NT is not)
+
+[1020] > cd Cont
+
+[11b8] \ControlSet001> l
+ls of node at offset 0x11bc
+Node has 4 subkeys and 0 values
+offs          key name
+[  1348]   <Control>
+[ 60628]   <Enum>
+[ 80b60]   <Hardware Profiles>
+[ 820f0]   <Services>
+
+[11b8] \ControlSet001> 
+
+[11b8] \ControlSet001> cd Ser
+
+[820f0] \ControlSet001\Services> l
+ls of node at offset 0x820f4
+Node has 238 subkeys and 0 values
+offs          key name
+[ 82148]   <Abiosdsk>
+[ 82270]   <abp480n5>
+[ 824b0]   <ACPI>
+[ 82628]   <ACPIEC>
+[ 82750]   <adpu160m>
+....
+[ dcdc0]   <WmiApSrv>
+[ dd228]   <wuauserv>
+[ dd7d8]   <WZCSVC>
+
+[b92e0] \ControlSet001\Services\perc2> l
+ls of node at offset 0xb92e4
+Node has 1 subkeys and 4 values
+offs          key name
+[ b9408]   <Parameters>
+offs        size      type   value name                    [value if type DWORD]
+[ b933c]      4  REG_DWORD         <ErrorControl>             1 [0x1]
+[ b9364]     28  REG_SZ            <Group>
+[ b93b4]      4  REG_DWORD         <Start>                    4 [0x4]
+[ b93d4]      4  REG_DWORD         <Type>                     1 [0x1]
+
+[b92e0] \ControlSet001\Services\perc2> cat Group
+Value <Group> of type REG_SZ, data length 28 [0x1c]
+SCSI miniport
+
+[b92e0] \ControlSet001\Services\perc2> ed Start
+EDIT: <Start> of type REG_DWORD with length 4 [0x4]
+DWORD: Old value 4 [0x4], enter new value (prepend 0x if hex, empty to keep old value)
+-> 1
+DWORD: New value 1 [0x1], 
+
+  (seems like we just switched it on)
+
+[b92e0] \ControlSet001\Services\perc2> cd \ControlSet001\Control\ServiceGroupOrder
+
+  (Multi strings are a bit awkward..)
+
+[51048] \ControlSet001\Control\ServiceGroupOrder> ed List
+EDIT: <List> of type REG_MULTI_SZ with length 1948 [0x79c]
+[ 0]: System Reserved
+[ 1]: Boot Bus Extender
+[ 2]: System Bus Extender
+[ 3]: SCSI miniport
+[ 4]: Port
+...
+[52]: SpoolerGroup
+[53]: AudioGroup
+[54]: NetworkProvider
+[55]: RemoteValidation
+[56]: NetDDEGroup
+[57]: Parallel arbitrator
+[58]: Extended Base
+[59]: PCI Configuration
+[60]: MS Transactions
+
+Now enter new strings, one by one.
+Enter nothing to keep old.
+'--n' to quit (remove rest of strings)
+'--i' insert new string at this point
+'--q' to quit (leaving remaining strings as is)
+'--Q' to quit and discard all changes
+'--e' for empty string in this position
+[ 0]: System Reserved
+-> 
+
+  (Basically, press just enter to keep string in that postition)
+  (or enter something to overwrite that postion)
+  (else give commands as described)
+
+[ 0]: System Reserved
+-> 
+[ 1]: Boot Bus Extender
+-> 
+[ 2]: System Bus Extender
+-> 
+[ 3]: SCSI miniport
+-> SCSI megaport
+  (This will replace the string "SCSI miniport" with "SCSI megaport",
+   it will probably wreck things once NT boots :)
+[ 4]: Port
+-> --i
+[ 4]: [INSERT]
+-> SuperGroup 
+  (Inserts "SuperGroup" as string #4, rest is moved down one)
+[ 5]: Port
+-> 
+[ 6]: Primary Disk
+-> --e
+  (Will clear the string in this position, empty string)
+[ 7]: SCSI Class
+-> --q
+  (keep the rest as is)
+
+
+[51048] \ControlSet001\Control\ServiceGroupOrder> cd \ControlSet001\Control\SystemResources
+
+[578a0] \ControlSet001\Control\SystemResources> cd Bu
+
+[57f18] (...)\Control\SystemResources\BusValues> l
+ls of node at offset 0x57f1c
+Node has 0 subkeys and 11 values
+offs        size      type   value name                    [value if type DWORD]
+[ 57f7c]      8  REG_BINARY        <CBus>
+[ 57fac]      8  REG_BINARY        <Eisa>
+[ 58914]      8  REG_BINARY        <Internal>
+[ 58934]      8  REG_BINARY        <Isa>
+[ 5897c]      8  REG_BINARY        <MPI>
+[ 5899c]      8  REG_BINARY        <MPSA>
+[ 589ec]      8  REG_BINARY        <NuBus>
+[ 58a0c]      8  REG_BINARY        <PCI>
+[ 589cc]      8  REG_BINARY        <PCMCIA>
+[ 58a74]      8  REG_BINARY        <TurboChannel>
+[ 58a3c]      8  REG_BINARY        <VME>
+
+[57f18] (...)\Control\SystemResources\BusValues> cat Internal
+Value <Internal> of type REG_BINARY, data length 8 [0x8]
+:00000  00 00 00 00 00 00 00 00                         ........
+
+[57f18] (...)\Control\SystemResources\BusValues> cat MPI
+Value <MPI> of type REG_BINARY, data length 8 [0x8]
+:00000  0A 00 00 00 00 00 00 00                         ........
+
+  (and now for editing of binary or unhandled valuetypes)
+
+[57f18] (...)\Control\SystemResources\BusValues> ed Internal
+EDIT: <Internal> of type REG_BINARY with length 8 [0x8]
+New length (ENTER to keep same): 
+
+  (here you may enter a new size for the binary blob.
+   new space will be filled with zero's)
+
+Buffer debugger. '?' for help.
+.?
+d [<from>] [<to>] - dump buffer within range
+a [<from>] [<to>] - same as d, but without ascii-part (for cut'n'paste)
+: <offset> <hexbyte> [<hexbyte> ...] - change bytes
+h <from> <to> <hexbyte> [<hexbyte> ...] - hunt (search) for bytes
+ha <hexbyte> [<hexbyte] - Hunt all (whole buffer)
+s - save & quit
+q - quit (no save)
+  instead of <hexbyte> etc. you may give 'string to enter/search a string
+.
+.d
+:00000  00 00 00 00 00 00 00 00                         ........
+.:1 38 39
+from: 1, wlen: 2
+.d 0
+:00000  00 38 39 00 00 00 00 00                         .89.....
+.:0 'edit
+from: 0, wlen: 4
+.d 0
+:00000  65 64 69 74 00 00 00 00                         edit....
+
+  (now, s will save the value, q will throw away the changes)
+
+.s
+
+[6f00] (...)\Control\SystemResources\BusValues> cat Internal
+Value <Internal> of type REG_BINARY, data length 8 [0x8]
+:00000  68 61 68 61 00 00 00 00                         haha....
+
+[6f00] (...)\Control\SystemResources\BusValues> cd \
+
+[1020] > l
+ls of node at offset 0x1024
+Node has 6 subkeys and 0 values
+offs          key name
+[  11b8]   <ControlSet001>
+[ dff88]   <ControlSet002>
+[1c2040]   <LastKnownGoodRecovery>
+[ de448]   <MountedDevices>
+[ de998]   <Select>
+[ deab8]   <Setup>
+
+  (now let's make a subkey here)
+
+[1020] > nk DemoKey
+
+[1020] > l
+ls of node at offset 0x1024
+Node has 7 subkeys and 0 values
+offs          key name
+[  11b8]   <ControlSet001>
+[ dff88]   <ControlSet002>
+[1c2ef8]   <DemoKey>
+[1c2040]   <LastKnownGoodRecovery>
+[ de448]   <MountedDevices>
+[ de998]   <Select>
+[ deab8]   <Setup>
+
+[1020] > cd DemoKey
+
+[1c2ef8] \DemoKey> l
+ls of node at offset 0x1c2efc
+Node has 0 subkeys and 0 values
+
+  (it's empty. let's add a value)
+
+[1c2ef8] \DemoKey> nv 1 test
+
+  (type 1 is string, 3 binary, 4 dword)
+  (HINT: type "nv h" for help)
+
+[1c2ef8] \DemoKey> l
+ls of node at offset 0x1c2efc
+Node has 0 subkeys and 1 values
+offs        size      type   value name                    [value if type DWORD]
+[ e0144]      0  REG_SZ            <test>
+
+  (well, never mind, delete it)
+
+[1c2ef8] \DemoKey> dv test
+
+[1c2ef8] \DemoKey> l
+ls of node at offset 0x1c2efc
+Node has 0 subkeys and 0 values
+
+[1c2ef8] \DemoKey> cd ..
+
+[1020] > l
+ls of node at offset 0x1024
+Node has 7 subkeys and 0 values
+offs          key name
+[  11b8]   <ControlSet001>
+[ dff88]   <ControlSet002>
+[1c2ef8]   <DemoKey>
+[1c2040]   <LastKnownGoodRecovery>
+[ de448]   <MountedDevices>
+[ de998]   <Select>
+[ deab8]   <Setup>
+
+  (and delete the key)
+
+[1020] > dk DemoKey
+
+[1020] > l
+ls of node at offset 0x1024
+Node has 6 subkeys and 0 values
+offs          key name
+[  11b8]   <ControlSet001>
+[ dff88]   <ControlSet002>
+[1c2040]   <LastKnownGoodRecovery>
+[ de448]   <MountedDevices>
+[ de998]   <Select>
+[ deab8]   <Setup>
+
+  (list hives loaded, only one this time)
+
+[1020] > h
+* D  0   2097152      0x00200000 <system>
+^ ^ hive#  size(dec)  size(hex)      name
+| |
+| |--- Hive dirty flag.
+|
+|--- Current hive, being edited.
+
+    (hive 2 will change to hive #2 listed and so on..)
+
+    (now, let's quit)
+
+[57f18] (...)\Control\SystemResources\BusValues> q
+
+Hives that have changed:
+ #  Name
+ 0  <system>
+Write hive files? (y/n) [n] : y
+ 0  <system> - OK
+
+(done)
