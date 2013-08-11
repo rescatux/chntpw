@@ -5,7 +5,7 @@
  * it's main purpose is to reset password based information.
  * It can also call the registry editor etc
 
- * 2013-aug: Command line options for non-interactive support : User promotion
+ * 2013-aug: Command line options for non-interactive support : User promotion, Unlock user
  * 2011-jul: Command line options for non-interactive support : Blank password
  * 2011-apr: Command line options added for hive expansion safe mode
  * 2010-jun: Syskey not visible in menu, but is selectable (2)
@@ -77,7 +77,7 @@
 #include "ntreg.h"
 #include "sam.h"
 
-const char chntpw_version[] = "chntpw-NG version 0.99.8 081113 , (c) Adrian Gibanel";
+const char chntpw_version[] = "chntpw-NG version 0.99.9 081113 , (c) Adrian Gibanel";
 
 extern char *val_types[REG_MAX+1];
 
@@ -85,6 +85,8 @@ extern char *val_types[REG_MAX+1];
 int automaticblank = 0;
 /*Automatic option for promoting user*/
 int automaticpromote = 0;
+/*Automatic option for unlocking user*/
+int automaticunlock = 0;
 
 /* Global verbosity */
 int gverbose = 0;
@@ -661,8 +663,9 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
 
    if (automaticblank == 1) {pl = 1 ; *newp = '1';}
    if (automaticpromote == 1) {pl = 3 ; *newp = '3';}
+   if (automaticunlock == 1) {pl = 4 ; *newp = '4';}
    
-   if ((automaticblank != 1) && (automaticpromote != 1))
+   if ( (automaticblank != 1) && (automaticpromote != 1) && (automaticunlock != 1) )
    {
      pl = fmyinput("Select: [q] > ",newp,16);
    }
@@ -1202,6 +1205,7 @@ void usage(void) {
 	  " -d          Enter buffer debugger instead (hex editor), \n"
 	  " -b          Choose blank of the password automatically, \n"
 	  " -p          Choose user promotion to Administrator automatically, \n"
+	  " -U          Choose unlock user automatically, \n"
           " -v          Be a little more verbose (for debuging)\n"
 	  " -L          For scripts, write names of changed files to /tmp/changed\n"
 	  " -N          No allocation mode. Only same length overwrites possible (very safe mode)\n"
@@ -1223,11 +1227,12 @@ int main(int argc, char **argv)
    char iwho[100];
    FILE *ch;     /* Write out names of touched files to this */
    
-   char *options = "LENbpidehlvu:";
+   char *options = "LENUbpidehlvu:";
    
    printf("%s\n",chntpw_version);
    while((c=getopt(argc,argv,options)) > 0) {
       switch(c) {
+       case 'U': automaticunlock = 1; break;
        case 'p': automaticpromote = 1; break;
        case 'b': automaticblank = 1; break;
        case 'd': dodebug = 1; break;
