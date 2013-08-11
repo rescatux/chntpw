@@ -8,13 +8,13 @@
 
 #SSLPATH=/usr/local/ssl
 OSSLPATH=/usr
-OSSLINC=$(OSSLPATH)/include
+OSSLINC=$(OSSLPATH)/include/i386-linux-gnu
 
 CC=gcc
 
 # Force 32 bit
 CFLAGS= -DUSEOPENSSL -g -I. -I$(OSSLINC) -Wall -m32 
-OSSLLIB=$(OSSLPATH)/lib
+OSSLLIB=$(OSSLPATH)/lib/i386-linux-gnu
 
 # 64 bit if default for compiler setup
 #CFLAGS= -DUSEOPENSSL -g -I. -I$(OSSLINC) -Wall
