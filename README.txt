@@ -1,20 +1,26 @@
 
-The Offline NT Password Editor
+The Offline Windows Password Editor
 
-(c) 1997-2011 Petter Nordahl-Hagen
+(c) 1997-2014 Petter Nordahl-Hagen
 
 This is free software, licensed under the following:
 
-"ntreg" (the registry library) is licensed under the GNU Lesser Public
-License. See LGPL.txt.
+"ntreg" (the registry library) and
+"libsam" (SAM manipulation library, user, groups etc)
+is licensed under the GNU Lesser Public License. See LGPL.txt.
 
-"chntpw" (the password reset / registry editor frontend) is licensed
-under the GNU General Public License, see GPL.txt.
+"chntpw" (the password reset / registry editor frontend)
+"reged" (registry editor, export and import tool)
+"sampasswd" (password reset command line program)
+"samusrgrp" (user and group command line program)
+is licensed under the GNU General Public License, see GPL.txt.
 
-"reged" (registry editor /export tool) is licensed
-under the GNU General Public License, see GPL.txt.
 
-See INSTALL.txt for compile/installation instructions.
+For manual to the different commands, see MANUAL.txt
+Also, all have some help built in, just use the -h option.
+
+See INSTALL.txt for compile instructions.
+
 
 Where to get more info:
 -----------------------
@@ -22,16 +28,17 @@ Where to get more info:
 http://pogostick.net/~pnh/ntpasswd/
 
 At that site there's a floppy and a bootable CD that use chntpw to
-access the NT/2k/XP/Vista-system it is booted on to edit password etc.
+access the NT/2k/XP/Vista/Win7/Win8 system it is booted on to edit password etc.
 The instructions below are for the standalone program itself, not the floppy.
 
 What does chntpw do?
 --------------------
 
 This little program will enable you to view some information and
-change user passwords in a Windows (NT/XP/Vista/win7) etc SAM userdatabase file.
+change user passwords, change user/group memberships
+in a Windows (NT/XP/Vista/win7/win8) etc SAM userdatabase file.
 You do not need to know the old passwords.
-However, you need to get at the file some way or another yourself.
+However, you need to get at the registry files some way or another yourself.
 In addition it contains a simple registry editor with full write support,
 and hex-editor which enables you to
 fiddle around with bits&bytes in the file as you wish yourself.
@@ -43,6 +50,15 @@ Also have registry import or export
 the registry hive (binary) files. Also has an editor, but still
 rudimentary text based command line type thing.
 
+And by popular request
+Even have programs that can be used in scripts!
+-----------------------------------------------
+"sampasswd" can be used in scripts to get lists
+of users or reset passwords automatically
+"samusrgrp" can be used in scripts to list or change
+memberships in groups automatically.
+
+
 
 Why?
 ----
@@ -52,101 +68,43 @@ I just _must_ have some stuff out of half a year later..)
 On most unix-based boxes you just boot the thingy off some kind
 of rescue bootmedia (cd/floppy etc), and simply edit the
 password file.
-On Windows NT however, as far as I know, there is no way except reinstalling
+On Windows however, as far as I know, there is no way except reinstalling
 the userdatabase, losing all users except admin.
 (ok, some companies let you pay lotsa $$$$$ for some rescue service..)
+(ok, from Windows Vista or something you can make a password reset
+file, but you have to remember to do that BEFORE you forget your password...)
 
 How?
 ----
 
 Currently, this thing only runs under linux, but it may just happen
 to compile on other platforms, too.
-(there are dos-versions available, look for links on my webpage)
-So, to set a new adminpassword on your NT installation you either:
+
+So, to set a new adminpassword on your Windows installation you either:
+
 1) Take the harddrive and mount it on a linux-box
-2) Use a linux-bootdisk or CD
-   one is available at: http://pogostick.net/~pnh/ntpasswd/
-ie. you do it offline, with the NT system down.
+
+or
+
+2) Boot a "live" linux CD with full GUI (many available: Ubuntu,
+   Knoppix and more. Search for them)
+
+In both those cases, use the "chntpw.static" program found in the
+"static" zip file on my website.
+or
+
+3) Use my linux boot CD (or USB) at: http://pogostick.net/~pnh/ntpasswd/
 
 Usage:
 ------
 
-This is usage of the "chntpw" program binary only.
-For info on the bootdisk, see the web site.
-Some of the output format has changed a little since the docs were
-first written.
+For manual to the different commands, see MANUAL.txt
+Also, all have some help built in, just use the -h option.
 
-	chntpw version 0.99.2 040105, (c) Petter N Hagen
-	chntpw: change password of a user in a NT SAM file, or invoke registry editor.
-	chntpw [OPTIONS] <samfile> [systemfile] [securityfile] [otherreghive] [...]
-	 -h          This message
-	  -u <user>   Username to change, Administrator is default
-	  -l          list all users in SAM file
-	  -i          Interactive. List users (as -l) then ask for username to change
-	  -e          Registry editor. Now with full write support!
-	  -d          Enter buffer debugger instead (hex editor), 
-	  -t          Trace. Show hexdump of structs/segments. (deprecated debug function)
-	  -v          Be a little more verbose (for debuging)
-	  -L          Write names of changed files to /tmp/changed
-	  -N          No allocation mode. Only (old style) same length overwrites possible
+Some old tech babble on how the password is stored
+--------------------------------------------------
+(still mostly valid, but should be moved somewhere else than this file)
 
-Normal usage is:
-
-> chntpw sam system security
-  - open registry hives 'sam' and 'system' and change administrator account.
-  Verions dated later from Feb 1999 and later also supports
-  and will find the admin account, even if the name has been changed,
-  or the name has been localized (different languageversion of NT
-  use different admin-names)
-
-The -u option:
-Specifies user to change:
-
-> chntpw -u jabbathehutt mysam
-  - Prompt for password for 'jabbathehutt', if found (otherwise do nothing)
-  
-Or you may give RID number in hex:
-> chntpw -u 0x1f4 mysam
-  - Will edit administrator.
-
-Names does not support multibyte (unicode) characters like
-some russian and asian locales. Give RID in hex to edit users
-with such names. Must start with 0x. Ex: 0x2fa
-
-The -l option:
-  Will list all users in the sam-file.
-  
-The -i option:
-  Go into the interactive menu system.
-  
-The -d option:
-  This will load the file, and then immediately enter the
-  buffer debugger.
-  This is a simple hex-editor with only a few commands,
-  enter ? at the . prompt to se a short command overview.
-  'q' exits without saving, 's' exit and saves.
-
-The -e option:
-  Will enter the registry editor.
-  You can navigate the registry like a filesystem at the command-line prompt:
-  See regedit.txt file for more info.
-
-The -t option:
-  This is a debug function (extended -l) to show how it traces the chain
-  of structs in the file. This also includes a raw interpretation
-  of the different registry structures + a hex dump.
-
-The -L option:
-  Drops the filenames of the changed hives in /tmp/changed
-  Used by the bootdisk scripts.
-  
-The -N option:
-  Will fall back to old edit mode, disable the block allocations
-  and only support overwrite-same-size. Used to ensure safety
-  in testing period.
-
-How does it work:
------------------
 
 A struct, called the V value of a key in the NT registry
 was suddenly somewhat documented through the pwdump utility

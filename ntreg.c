@@ -1,6 +1,18 @@
 /*
  * ntreg.c - Windows (NT and up) Registry Hive access library
+ *           should be able to handle most basic functions:
+ *           iterate, add&delete keys and values, read stuff, change stuff etc
+ *           no rename of keys or values yet..
+ *           also contains some minor utility functions (string handling etc) for now
  * 
+ * 2014-jan: openhive() now more compatible with build on non-unix?
+ * 2013-aug: Enter buil-in buffer debugger only if in trace mode, else return error or abort()
+ * 2013-may-aug: Fixed critical bug in del_value which could
+ *           thrash the hive when removing value in bottom of key.
+ *           And a pointer not reinitialized when buffer reallocated in some cases, fixed.
+ *           Thanks to Jacky To for reporting those two.
+ *           Some minor adjustments for compiler. A few more utility functions.
+ * 2012-oct: Added set_val_type. some minor changes.
  * 2011-may: Seems like large values >16k or something like that is split
  *           into several blocks (db), have tried to implement that.
  *           Vista seems to accept it. Not tested on others yet.
@@ -43,7 +55,7 @@
  *****
  *
  * NTREG - Window registry file reader / writer library
- * Copyright (c) 1997-2010 Petter Nordahl-Hagen.
+ * Copyright (c) 1997-2014 Petter Nordahl-Hagen.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -68,6 +80,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <stdarg.h>
 
 #include "ntreg.h"
 
@@ -77,7 +90,7 @@
 #define ZEROFILL      1  /* Fill blocks with zeroes when allocating and deallocating */
 #define ZEROFILLONLOAD  0  /* Fill blocks marked as unused/deallocated with zeroes on load. FOR DEBUG */
 
-const char ntreg_version[] = "ntreg lib routines, v0.95 110511, (c) Petter N Hagen";
+const char ntreg_version[] = "ntreg lib routines, v0.95 140201, (c) Petter N Hagen";
 
 const char *val_types[REG_MAX+1] = {
   "REG_NONE", "REG_SZ", "REG_EXPAND_SZ", "REG_BINARY", "REG_DWORD",       /* 0 - 4 */
@@ -162,13 +175,37 @@ char *str_dup( const char *str )
 {
     char *str_new;
 
-    if (!str)
-        return 0 ;
+    if (!str) return(0);
 
     CREATE( str_new, char, strlen(str) + 1 );
     strcpy( str_new, str );
     return str_new;
 }
+
+char *str_cat(char *str, char *add)
+{
+  if (!add) return(str);
+  str = (char *) realloc(str, strlen(str) + strlen(add) + 3);
+  strcat (str, add);
+  return (str);
+}
+
+char *str_catf(char *str, const char *format, ... )
+{
+    va_list ap;
+    char add[640] ;
+
+    va_start(ap, format) ;
+    vsprintf(add, format, ap) ;
+    va_end(ap) ;
+
+    str = (char *) realloc(str, strlen(str) + strlen(add) + 3);
+    strcat (str, add );
+    return(str);
+}
+
+
+
 
 /* Copy non-terminated string to buffer we allocate and null terminate it
  * Uses length only, does not check for nulls
@@ -440,6 +477,44 @@ int debugit(char *buf, int sz)
 }
 
 
+/* Utility function to copy and append two values into a new one
+ * Will allocate new buffer, but not touch the input ones
+ */
+
+struct keyval *reg_valcat(struct keyval *a, struct keyval *b)
+{
+  int newsize = 0;
+  int asize = 0;
+  int bsize = 0;
+  struct keyval *result = NULL;
+
+  if (!a && !b) return(NULL);
+
+  if (a) asize = a->len;
+  if (b) bsize = b->len;
+
+  newsize = asize + bsize;
+
+  // printf("asize = %d, bsize = %d, newsize = %d\n",asize,bsize,newsize);
+
+  ALLOC(result, sizeof(struct keyval) + newsize, 1);
+
+  if (asize) memcpy(&result->data, &a->data, asize);
+  if (bsize) memcpy(&result->data + asize / sizeof(int), &b->data, bsize);
+  result->len = newsize;
+
+  //printf("reg_valcat done\n");
+
+  return(result);
+
+}
+
+
+
+
+
+
+
 /* ========================================================================= */
 
 /* The following routines are mostly for debugging, I used it
@@ -690,7 +765,7 @@ int parse_block(struct hive *hdesc, int vofs,int verbose)
 #endif
   if (seglen == 0) {
     printf("parse_block: FATAL! Zero data block size! (not registry or corrupt file?)\n");
-    debugit(hdesc->buffer,hdesc->size);
+    if (verbose) debugit(hdesc->buffer,hdesc->size);
     return(0);
   }
   
@@ -819,8 +894,8 @@ int find_free_blk(struct hive *hdesc, int pofs, int size)
 	printf("find_free_blk: at exact end of hbin, do not care..\n");
 	return(0);
       }
-      abort();
-      debugit(hdesc->buffer,hdesc->size);
+      if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
+      else abort();
       return(0);
     }
     
@@ -1108,7 +1183,7 @@ int free_block(struct hive *hdesc, int blk)
     printf("free_block: trying to free already free block!\n");
 #ifdef DOCORE
       printf("blk = %x\n",blk);
-      debugit(hdesc->buffer,hdesc->size);
+      if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
       abort();
 #endif
     return(0);
@@ -1148,7 +1223,7 @@ int free_block(struct hive *hdesc, int blk)
       printf("free_block: ran off end of page!?!? Error in chains?\n");
 #ifdef DOCORE
       printf("vofs = %x, pofs = %x, blk = %x\n",vofs,pofs,blk);
-      debugit(hdesc->buffer,hdesc->size);
+      if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
       abort();
 #endif
       return(0);
@@ -1701,9 +1776,9 @@ void nk_ls(struct hive *hdesc, char *path, int vofs, int type)
   VERBF(hdesc,"ls of node at offset 0x%0x\n",nkofs);
 
   if (key->id != 0x6b6e) {
-    printf("Error: Not a 'nk' node!\n");
+    printf("Error: Not a 'nk' node at offset %x!\n",nkofs);
 
-    debugit(hdesc->buffer,hdesc->size);
+    if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
     
   }
   
@@ -1721,13 +1796,13 @@ void nk_ls(struct hive *hdesc, char *path, int vofs, int type)
   }
   count = 0;
   if (key->no_values) {
-    printf("  size     type            value name             [value if type DWORD]\n");
+    printf("  size     type              value name             [value if type DWORD]\n");
     while ((ex_next_v(hdesc, nkofs, &count, &vex) > 0)) {
-      if (hdesc->state & HMODE_VERBOSE) printf("[%6x] %6d  %-16s  <%s>", vex.vkoffs - 4, vex.size,
+      if (hdesc->state & HMODE_VERBOSE) printf("[%6x] %6d  %x %-16s   <%s>", vex.vkoffs - 4, vex.size, vex.type,
 					       (vex.type < REG_MAX ? val_types[vex.type] : "(unknown)"), vex.name);
       else
-      printf("%6d  %-16s  <%s>", vex.size,
-	     (vex.type < REG_MAX ? val_types[vex.type] : "(unknown)"), vex.name);
+	printf("%6d  %x %-16s   <%s>", vex.size, vex.type,
+	       (vex.type < REG_MAX ? val_types[vex.type] : "(unknown)"), vex.name);
 
       if (vex.type == REG_DWORD) printf(" %*d [0x%x]",25-(int)strlen(vex.name),vex.val , vex.val);
       printf("\n");
@@ -1751,6 +1826,27 @@ int get_val_type(struct hive *hdesc, int vofs, char *path, int exact)
 
   return(vkkey->val_type);
 }
+
+/* Set/change the type of a value. Strangely we need this in some situation in SAM
+ * and delete + add value is a bit overkill */
+
+int set_val_type(struct hive *hdesc, int vofs, char *path, int exact, int type)
+{
+  struct vk_key *vkkey;
+  int vkofs;
+
+  vkofs = trav_path(hdesc, vofs,path,exact | TPF_VK);
+  if (!vkofs) {
+    return -1;
+  }
+  vkofs +=4;
+  vkkey = (struct vk_key *)(hdesc->buffer + vkofs);
+
+  vkkey->val_type = type;
+
+  return(vkkey->val_type);
+}
+
 
 
 /* Get len of a value, given current key + path */
@@ -1930,7 +2026,7 @@ int fill_block(struct hive *hdesc, int ofs, void *data, int size)
   /*  if (blksize < size || ( (ofs & 0xfffff000) != ((ofs+size) & 0xfffff000) )) { */
   if (blksize < size) {
     printf("fill_block: ERROR: block to small for data: ofs = %x, size = %x, blksize = %x\n",ofs,size,blksize);
-    debugit(hdesc->buffer,hdesc->size);
+    if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
     abort();
   }
 
@@ -2282,7 +2378,7 @@ int del_value(struct hive *hdesc, int nkofs, char *name, int exact)
 
     /* Now copy over, omitting deleted entry */
     newlistkey = (int32_t *)(hdesc->buffer + newlistofs + 4);
-    for (n = 0, o = 0; o < nk->no_values+1; o++, n++) {
+    for (n = 0, o = 0; n < nk->no_values; o++, n++) {
       if (o == slot) o++;
       newlistkey[n] = tmplist[o];
     }
@@ -2609,7 +2705,7 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
 
 
   if (key->id != 0x6b6e) {
-    printf("add_key: current ptr not nk\n");
+    printf("del_key: current ptr not nk\n");
     return(1);
   }
 
@@ -2747,6 +2843,13 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
   /* Allocate space for our new lf list and copy it into reg */
   if ( no_keys && (newlf || newli) ) {
     newlfofs = alloc_block(hdesc, nkofs, 8 + (newlf ? 8 : 4) * no_keys);
+
+    /* alloc_block may invalidate pointers if hive expanded. Recalculate this one.
+     * Thanks to Jacky To for reporting it here, and suggesting a fix
+     * (better would of course be for me to redesign stuff :)
+     */ 
+    if (delnkofs) delnk = (struct nk_key *)(delnkofs + hdesc->buffer + 0x1004);
+
 #ifdef DKDEBUG
     printf("del_key: alloc_block for index returns: %x\n",newlfofs);
 #endif
@@ -2775,7 +2878,7 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
   if (newlfofs < 0xfff) {
     printf("del_key: ERROR: newlfofs = %x\n",newlfofs);
 #if DOCORE
-    debugit(hdesc->buffer,hdesc->size);
+    if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
     abort();
 #endif
   }
@@ -2878,10 +2981,10 @@ void rdel_keys(struct hive *hdesc, char *path, int vofs)
   */
 
   if (key->id != 0x6b6e) {
-    printf("Error: Not a 'nk' node!\n");
+    printf("rdel_keys: ERROR: Not a 'nk' node!\n");
 
-    debugit(hdesc->buffer,hdesc->size);
-    
+    if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
+    return;
   }
   
 #if 0
@@ -3770,7 +3873,7 @@ void import_reg(struct hive *hdesc, char *filename, char *prefix)
     char *value = NULL;
     int wide = 0;
     int c,wl;
-    void *valbuf;
+    //    void *valbuf;
     char *valname = NULL;
     char *plainname = NULL;
     char *valstr, *key, *walstr = NULL;
@@ -3951,7 +4054,7 @@ void import_reg(struct hive *hdesc, char *filename, char *prefix)
        }
        value = dequote(value);
        valstr = str_dup(value);
-       valbuf = NULL;
+       //       valbuf = NULL;
        //printf("import_reg: val name = %s\n",valname);
        //printf("import_reg: val str  = %s\n",valstr);
        
@@ -4018,7 +4121,8 @@ int32_t calc_regfsum(struct hive *hdesc)
 
 
 
-/* Write the hive back to disk (only if dirty & not readonly */
+/* Write the hive back to disk (only if dirty & not readonly) */
+
 int writeHive(struct hive *hdesc)
 {
   int len;
@@ -4065,6 +4169,7 @@ struct hive *openHive(char *filename, int mode)
   uint32_t pofs;
   int32_t checksum;
   char *c;
+  int rt;
   struct hbin_page *p;
   struct regf_header *hdr;
   struct nk_key *nk;
@@ -4072,6 +4177,9 @@ struct hive *openHive(char *filename, int mode)
 
   int verbose = (mode & HMODE_VERBOSE);
   int trace   = (mode & HMODE_TRACE) ? 1 : 0;
+  int info    = (mode & HMODE_INFO);
+
+  if (!filename || !*filename) return(NULL);
 
   CREATE(hdesc,struct hive,1);
 
@@ -4085,6 +4193,12 @@ struct hive *openHive(char *filename, int mode)
   } else {
     fmode = O_RDWR;
   }
+
+  /* Some non-unix platforms may need this. Thanks to Dan Schmidt */
+#ifdef O_BINARY
+  fmode |= O_BINARY;
+#endif
+
   hdesc->filedesc = open(hdesc->filename,fmode);
   if (hdesc->filedesc < 0) {
     fprintf(stderr,"openHive(%s) failed: %s, trying read-only\n",hdesc->filename,strerror(errno));
@@ -4106,14 +4220,23 @@ struct hive *openHive(char *filename, int mode)
 
   hdesc->size = sbuf.st_size;
   hdesc->state = mode | HMODE_OPEN;
-  /*  fprintf(stderr,"hiveOpen(%s) successful\n",hdesc->filename); */
-  
+
   /* Read the whole file */
 
   ALLOC(hdesc->buffer,1,hdesc->size);
 
-  r = read(hdesc->filedesc,hdesc->buffer,hdesc->size);
-  if (r < hdesc->size) {
+  rt = 0;
+  do {  /* On some platforms read may not block, and read in chunks. handle that */
+    r = read(hdesc->filedesc, hdesc->buffer + rt, hdesc->size - rt);
+    rt += r;
+  } while ( !errno && (rt < hdesc->size) );
+
+  if (errno) { 
+    perror("openHive(): read error: ");
+    closeHive(hdesc);
+    return(NULL);
+  }
+  if (rt < hdesc->size) {
     fprintf(stderr,"Could not read file, got %d bytes while expecting %d\n",
 	    r, hdesc->size);
     closeHive(hdesc);
@@ -4141,13 +4264,13 @@ struct hive *openHive(char *filename, int mode)
      fprintf(stderr,"openHive(%s): WARNING: REGF header checksum mismatch! calc: 0x%08x != file: 0x%08x\n",filename,checksum,hdr->checksum);
    }
 
-
-
-   printf("Hive <%s> name (from header): <",filename);
-   for (c = hdr->name; *c && (c < hdr->name + 64); c += 2) putchar(*c);
-
    hdesc->rootofs = hdr->ofs_rootkey + 0x1000;
-   printf(">\nROOT KEY at offset: 0x%06x * ",hdesc->rootofs);
+
+   if (info) {
+     printf("Hive <%s> name (from header): <",filename);
+     for (c = hdr->name; *c && (c < hdr->name + 64); c += 2) putchar(*c);
+     printf(">\nROOT KEY at offset: 0x%06x * ",hdesc->rootofs);
+   }
 
    /* Cache the roots subkey index type (li,lf,lh) so we can use the correct
     * one when creating the first subkey in a key */
@@ -4157,7 +4280,7 @@ struct hive *openHive(char *filename, int mode)
      rikey = (struct ri_key *)(hdesc->buffer + nk->ofs_lf + 0x1004);
      hdesc->nkindextype = rikey->id;
      if (hdesc->nkindextype == 0x6972) {  /* Gee, big root, must check indirectly */
-       printf("openHive: DEBUG: BIG ROOT!\n");
+       fprintf(stderr,"openHive: DEBUG: BIG ROOT!\n");
        rikey = (struct ri_key *)(hdesc->buffer + rikey->hash[0].ofs_li + 0x1004);
        hdesc->nkindextype = rikey->id;
      }
@@ -4167,7 +4290,7 @@ struct hive *openHive(char *filename, int mode)
        hdesc->nkindextype = 0x666c;
      }
 
-     printf("Subkey indexing type is: %04x <%c%c>\n",
+     if (info) printf("Subkey indexing type is: %04x <%c%c>\n",
 	    hdesc->nkindextype,
 	    hdesc->nkindextype & 0xff,
 	    hdesc->nkindextype >> 8);
@@ -4183,7 +4306,7 @@ struct hive *openHive(char *filename, int mode)
 #endif
      p = (struct hbin_page *)(hdesc->buffer + pofs);
      if (p->id != 0x6E696268) {
-       printf("Page at 0x%x is not 'hbin', assuming file contains garbage at end\n",pofs);
+       if (info) printf("Page at 0x%x is not 'hbin', assuming file contains garbage at end\n",pofs);
        break;
      }
      hdesc->pages++;
@@ -4218,10 +4341,11 @@ struct hive *openHive(char *filename, int mode)
      printf("hdr->unknown4 (version?)  : 0x%x\n",hdr->unknown4);
    }
 
-   printf("File size %d [%x] bytes, containing %d pages (+ 1 headerpage)\n",hdesc->size,hdesc->size, hdesc->pages);
-   printf("Used for data: %d/%d blocks/bytes, unused: %d/%d blocks/bytes.\n\n",
-	  hdesc->useblk,hdesc->usetot,hdesc->unuseblk,hdesc->unusetot);
-  
+   if (info || verbose) {
+     printf("File size %d [%x] bytes, containing %d pages (+ 1 headerpage)\n",hdesc->size,hdesc->size, hdesc->pages);
+     printf("Used for data: %d/%d blocks/bytes, unused: %d/%d blocks/bytes.\n\n",
+	    hdesc->useblk,hdesc->usetot,hdesc->unuseblk,hdesc->unusetot);
+   }
 
    /* So, let's guess what kind of hive this is, based on keys in its root */
 

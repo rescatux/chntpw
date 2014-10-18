@@ -6,7 +6,7 @@
  *****
  *
  * NTREG - Window registry file reader / writer library
- * Copyright (c) 1997-2011 Petter Nordahl-Hagen.
+ * Copyright (c) 1997-2013 Petter Nordahl-Hagen.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -318,6 +318,7 @@ struct keyvala {
 #define HMODE_DIDEXPAND 0x20       /* File has been expanded */
 #define HMODE_VERBOSE 0x1000
 #define HMODE_TRACE   0x2000
+#define HMODE_INFO    0x4000       /* Show some info on open and close */
 
 /* Suggested type of hive loaded, guessed by library, but not used by it */
 #define HTYPE_UNKNOWN   0
@@ -386,6 +387,8 @@ struct hive {
 /******* Function prototypes **********/
 
 char *str_dup( const char *str );
+char *str_cat(char *str, char *add);
+char *str_catf(char *str, const char *format, ... );
 int fmyinput(char *prmpt, char *ibuf, int maxlen);
 void hexprnt(char *s, unsigned char *bytes, int len);
 void hexdump(char *hbuf, int start, int stop, int ascii);
@@ -397,12 +400,16 @@ void skipspace(char **c);
 int gethex(char **c);
 int gethexorstr(char **c, char *wb);
 int debugit(char *buf, int sz);
+struct keyval *reg_valcat(struct keyval *a, struct keyval *b);
+
+
 int parse_block(struct hive *hdesc, int vofs,int verbose);
 int ex_next_n(struct hive *hdesc, int nkofs, int *count, int *countri, struct ex_data *sptr);
 int ex_next_v(struct hive *hdesc, int nkofs, int *count, struct vex_data *sptr);
 int get_abs_path(struct hive *hdesc, int nkofs, char *path, int maxlen);
 int trav_path(struct hive *hdesc, int vofs, char *path, int type);
 int get_val_type(struct hive *hdesc, int vofs, char *path, int exact);
+int set_val_type(struct hive *hdesc, int vofs, char *path, int exact, int type);
 int get_val_len(struct hive *hdesc, int vofs, char *path, int exact);
 void *get_val_data(struct hive *hdesc, int vofs, char *path, int val_type, int exact);
 struct keyval *get_val2buf(struct hive *hdesc, struct keyval *kv,

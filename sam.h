@@ -4,7 +4,7 @@
  *****
  *
  * NTREG - Window registry file reader / writer library
- * Copyright (c) 1997-2011 Petter Nordahl-Hagen.
+ * Copyright (c) 1997-2012 Petter Nordahl-Hagen.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,6 +24,23 @@
 
 #include <sys/types.h>
 #include <inttypes.h>
+
+
+/* Account V, contains machine SID and a lot of unknonw stuff */
+
+#define SID_BIN_LEN 24     /* Lenght of binary machine SID, incl header */
+#define SID_STR_MAX 50     /* Max string lenght of S-1-5-xxx-xxx-xxx-xxx type SID */
+
+#define ACCOUNTDB_V_PATH "\\SAM\\Domains\\Account\\V"
+
+struct accountdb_V {
+  char unknown1[0x38];  /* No idea what it does */
+  uint32_t sid_ofs;    /* 38 - Offset to machine SID */
+  uint32_t sid_len;    /* 3c - Lenght of sid (should be 0x14?) */
+  //  char unknown2[0x4];   /* 40 */
+  /* Data start at 0x40 ?? */
+  char data[4];
+};
 
 /* This contains some policy settings for the account database */
 
@@ -89,6 +106,8 @@ struct user_F {
 /* Seems not to be used on failed console logins at least */
 #define ACB_AUTOLOCK   0x0400  /* Account auto locked */
 
+/* Account Bits Fields strings (defined in libsam.c)
+
 char *acb_fields[16] = {
    "Disabled" ,
    "Homedir req." ,
@@ -107,6 +126,9 @@ char *acb_fields[16] = {
    "(unknown 0x40)" ,
    "(unknown 0x80)" ,
 };
+
+*/
+
 
 /* Users V data struct */
 /* First 0xCC bytes is pointer & len table, rest is data which
@@ -208,8 +230,9 @@ struct group_C {
   int fullname_len;    /* 0x20 */
 
   int unknown3_1;      /* 0x24 - always zero? */
-  int unknown3_2;      /* 0x28 - always zero? */
-  int unknown3_3;      /* 0x2c - always zero? */
+
+  int members_ofs;      /* 0x28 - offset to member list, which is SIDs */
+  int members_len;      /* 0x2c - member list size */
 
   int grp_members;     /* 0x30 - number of group members */
 
@@ -218,5 +241,56 @@ struct group_C {
   char data[];
 
 };
+
+/* Variable length binary structure that most SIDs are stored in
+ */
+
+struct sid_binary {
+  uint8_t revision;     /* 0x0 - Don't know. Always 1? Revision level? number of SIDs following? */
+  uint8_t sections;     /* 0x1 - Number of parts, 4 bytes each (unsigne integer) */
+  uint8_t unknown2;     /* 0x2 - Unknown, seems to be null padding */
+  uint8_t unknown3;     /* 0x3 - Unknown, seems to be null padding */
+
+  uint8_t unknown4;     /* 0x4 - Unknown  */
+  uint8_t unknown5;     /* 0x5 - Unknown  */
+  uint8_t unknown6;     /* 0x6 - Unknown  */
+  uint8_t authority;     /* 0x7 - Unknown, often 5 (could this be 8bit authority number?) */
+
+
+  uint32_t array[8];    /* As many as sections value says it is */
+};
+
+/* Array of SIDs */
+
+struct sid_array {
+  int len;
+  struct sid_binary *sidptr;
+};
+
+
+/* libsam.c functions */
+
+int sam_get_lockoutinfo(struct hive *hdesc, int show);
+short sam_handle_accountbits(struct hive *hdesc, int rid, int mode);
+int sam_get_machine_sid(struct hive *hdesc, char *sidbuf);
+char *sam_sid_to_string(struct sid_binary *sidbuf);
+struct sid_array *sam_make_sid_array(struct sid_binary *sidbuf, int size);
+void sam_free_sid_array(struct sid_array *array);
+int sam_sid_cmp(struct sid_binary *s1, struct sid_binary *s2);
+int sam_get_grp_members_sid(struct hive *hdesc, int grp, struct sid_array **sarray);
+int sam_put_grp_members_sid(struct hive *hdesc, int grp, struct sid_array *sarray);
+struct keyval *sam_get_user_grpids(struct hive *hdesc, int rid);
+int sam_put_user_grpids(struct hive *hdesc, int rid, struct keyval *val);
+int sam_add_user_to_grp(struct hive *hdesc, int rid, int grp);
+int sam_remove_user_from_grp(struct hive *hdesc, int rid, int grp);
+char *sam_get_username(struct hive *hdesc, int rid);
+char *sam_get_groupname(struct hive *hdesc, int grpid);
+int sam_list_users(struct hive *hdesc, int readable);
+int sam_list_user_groups(struct hive *hdesc, int rid, int check);
+int sam_reset_pw(struct hive *hdesc, int rid);
+void sam_list_groups(struct hive *hdesc, int listmembers, int human);
+int sam_reset_all_pw(struct hive *hdesc, int list);
+
+
 
 #endif

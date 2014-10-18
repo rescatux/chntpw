@@ -2,9 +2,16 @@
  * chntpw.c - Offline Password Edit Utility for Windows SAM database
  *
  * This program uses the "ntreg" library to load and access the registry,
+ * the "libsam" library for user / group handling
  * it's main purpose is to reset password based information.
  * It can also call the registry editor etc
  
+ * 2013-may: Added group add/remove in user edit (using new functions
+ *           in sam library)
+ * 2013-apr: Changed around a bit on some features, chntpw is now
+ *           mainly used for interactive edits.
+ *           For automatic/scripted functions, use new programs:
+ *           sampasswd and samusrgrp !
  * 2011-apr: Command line options added for hive expansion safe mode
  * 2010-jun: Syskey not visible in menu, but is selectable (2)
  * 2010-apr: Interactive menu adapts to show most relevant
@@ -33,7 +40,7 @@
  *
  *****
  *
- * Copyright (c) 1997-2011 Petter Nordahl-Hagen.
+ * Copyright (c) 1997-2014 Petter Nordahl-Hagen.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,8 +72,17 @@
 #include <sys/types.h>
 #include <inttypes.h>
 
+/* Define DOCRYPTO in makefile to include cryptostuff to be able to change passwords to
+ * a new one.
+ * Changing passwords is seems not to be working reliably on XP and newer anyway.
+ * When not defined, only reset (nulling) of passwords available.
+ */
+
+#ifdef DOCRYPTO
 #include <openssl/des.h>
 #include <openssl/md4.h>
+#endif
+
 #define uchar u_char
 #define MD4Init MD4_Init
 #define MD4Update MD4_Update
@@ -75,7 +91,7 @@
 #include "ntreg.h"
 #include "sam.h"
 
-const char chntpw_version[] = "chntpw version 0.99.6 110511 , (c) Petter N Hagen";
+const char chntpw_version[] = "chntpw version 1.00 140201, (c) Petter N Hagen";
 
 extern char *val_types[REG_MAX+1];
 
@@ -102,13 +118,10 @@ int syskeyreset = 0;
 int dirty = 0;
 int max_sam_lock = 0;
 
-/*
- * of user with RID 500, because silly MS decided
- * to localize the bloody admin-username!! AAAGHH!
- */
-char admuser[129]="Administrator";
-
 /* ============================================================== */
+
+
+#ifdef DOCRYPTO
 
 /* Crypto-stuff & support for what we'll do in the V-value */
 
@@ -199,284 +212,108 @@ void E1(uchar *k, uchar *d, uchar *out)
   des_ecb_encrypt((des_cblock *)d,(des_cblock *)out, ks, DES_ENCRYPT);
 }
 
-
-/* Check if hive is SAM, and if it is, extract some
- * global policy information from it, like lockout counts etc
- */
-
-void check_get_samdata(void)
-{
-  struct accountdb_F *f;
-  struct keyval *v;
-
-  if (H_SAM >= 0) {
-
-    /* Get users F value */
-    v = get_val2buf(hive[H_SAM], NULL, 0, ACCOUNTDB_F_PATH, REG_BINARY, TPF_VK);
-    if (!v) {
-      printf("Login counts data not found in SAM\n");
-      return;
-    }
-    printf("\n* SAM policy limits:\n");
-    
-    f = (struct accountdb_F *)&v->data;
-    max_sam_lock = f->locklimit;
-    
-    printf("Failed logins before lockout is: %d\n",max_sam_lock);
-    printf("Minimum password length        : %d\n",f->minpwlen);
-    printf("Password history count         : %d\n",f->minpwlen);
-    
-  }
-}
-
-
-/* Try to decode and possibly change account lockout etc
- * This is \SAM\Domains\Account\Users\<RID>\F
- * It's size seems to always be 0x50.
- * Params: RID - user ID, mode - 0 silent, 1 silent, 2 edit.
- * Returns: ACB bits with high bit set if lockout count is >0
- */
-
-short handle_F(int rid, int mode)
-{
-
-  struct user_F *f;
-  char s[200];
-  struct keyval *v;
-  unsigned short acb;
-  int b;
-
-  if (H_SAM < 0) return(0);
-
-  /* Get users F value */
-  snprintf(s,180,"\\SAM\\Domains\\Account\\Users\\%08X\\F",rid);
-  v = get_val2buf(hive[H_SAM], NULL, 0, s, REG_BINARY, TPF_VK_EXACT);
-  if (!v) {
-    printf("Cannot find value <%s>\n",s);
-    return(0);
-  }
-
-  if (v->len < 0x48) {
-    printf("handle_F: F value is 0x%x bytes, need >= 0x48, unable to check account flags!\n",v->len);
-    FREE(v);
-    return(0);
-  }
-
-  f = (struct user_F *)&v->data;
-  acb = f->ACB_bits;
-
-  if (mode == 1) {
-    printf("Account bits: 0x%04x =\n",acb);
-
-
-    for (b=0; b < 15; b++) {
-      printf("[%s] %-15.15s | ",
-	     (acb & (1<<b)) ? "X" : " ", acb_fields[b] );
-      if (b%3 == 2) printf("\n");
-    }
-
-    printf("\nFailed login count: %u, while max tries is: %u\n",f->failedcnt,max_sam_lock);
-    printf("Total  login count: %u\n",f->logins);
-  }
-    
-  if (mode == 2) {
-    acb |= ACB_PWNOEXP;
-    acb &= ~ACB_DISABLED;
-    acb &= ~ACB_AUTOLOCK;
-    f->ACB_bits = acb;
-    f->failedcnt = 0;
-    put_buf2val(hive[H_SAM], v, 0, s, REG_BINARY,TPF_VK_EXACT);
-    printf("Unlocked!\n");
-  }
-  return (acb | ( (f->failedcnt > 0 && f->failedcnt >= max_sam_lock)<<15 ) | (acb & ACB_AUTOLOCK)<<15 | (acb & ACB_DISABLED)<<15);
-}
-
-
-/* List users membership or check if admin (is in admin group)
- * rid   - users rid
- * check - if 1 just check if admin, do not list
- * returns true if user is admin
- */
-
-int list_user_groups(int rid, int check)
-{
-  char s[200];
-  char g[200];
-  char groupname[128];
-  int nk = 0;
-  struct keyval *m = NULL, *c = NULL;
-  struct group_C *cd;
-  unsigned int *grps;
-  int count = 0, isadmin = 0;
-  int i, size, grp, grpnamoffs, grpnamlen;
-
-  if (!rid || (H_SAM < 0)) return(0);
-  
-  
-  /* Get member list for user. Go for the first full SID, it's usually local computer I hope */
-  snprintf(s,180,"\\SAM\\Domains\\Builtin\\Aliases\\Members\\S-1-5-21-\\%08X",rid);
-  /* Now, the TYPE field is the number of groups the user is member of */
-  /* Don't we just love the inconsistent use of fields!! */
-  nk = trav_path(hive[H_SAM], 0, s, 0);
-  if (!nk) {
-    /* This probably means user is not in any group. Seems to be the case
-       for a couple of XPs built in support / guest users. So just return */
-    if (gverbose) printf("list_user_groups(): Cannot find RID under computer SID <%s>\n",s);
-    return(0);
-  }
-  nk += 4;
-  count = get_val_type(hive[H_SAM],nk,"@",TPF_VK_EXACT);
-  if (count == -1) {
-    printf("list_user_groups(): Cannot find value <%s\\@>\n",s);
-    return(0);
-  }
-
-  if (!check) printf("User is member of %d groups:\n",count);
-  
-  /* This is the data size */
-  size = get_val_len(hive[H_SAM],nk,"@",TPF_VK_EXACT);
-  
-  /* It should be 4 bytes for each group */
-  if (gverbose) printf("Data size %d bytes.\n",size);
-  if (size != count * 4) {
-    printf("list_user_groups(): DEBUG: Size is not 4 * count! May not matter anyway. Continuing..\n");
-  }
-  
-  m = get_val2buf(hive[H_SAM], NULL, nk, "@", 0, TPF_VK_EXACT);
-  if (!m) {
-    printf("list_user_groups(): Could not get value data! Giving up.\n");
-    return(0);
-  }
-  
-  grps = (unsigned int *)&m->data;
-  for (i = 0; i < count; i++) {
-    grp = grps[i];
-    if (!check) printf("%08x ",grp);
-
-    if (grp == 0x220) isadmin = 1;
-
-    if (!check) {
-      snprintf(g,180,"\\SAM\\Domains\\Builtin\\Aliases\\%08X\\C",grp);
-      c = get_val2buf(hive[H_SAM], NULL, 0, g, 0, TPF_VK_EXACT);
-      if (c) {
-	cd = (struct group_C *)&c->data;
-	grpnamoffs = cd->grpname_ofs + 0x34;
-	grpnamlen  = cd->grpname_len;
-	
-	cheap_uni2ascii((char *)cd + grpnamoffs, groupname, grpnamlen);
-	
-	printf("= %s (which has %d members)\n",groupname,cd->grp_members);
-	
-      } else {
-	printf("Group info for %x not found!\n",grp);
-      }
-    }
-  }
-  return(isadmin);
-}
+#endif   /* DOCRYPTO */
 
 
 
 /* Promote user into administrators group (group ID 0x220)
- * And remove from all others...
  * rid   - users rid
  * no returns yet
- * THIS IS VERY HACKISH YET
  */
 
 void promote_user(int rid)
 {
-  char s[200];
-  char g[200];
-  int nk = 0;
-  struct keyval *m = NULL, *c = NULL;
-  struct keyval admember = { 4, 0x220 };
-  unsigned int *grps, *gcnts;
-  int count = 0;
-  int i, size, grp;
+
+  char yn[5];
 
   if (!rid || (H_SAM < 0)) return;
   
-  
-  /* Get member list for user. Go for the first full SID, it's usually local computer I hope */
-  snprintf(s,180,"\\SAM\\Domains\\Builtin\\Aliases\\Members\\S-1-5-21-\\%08X",rid);
-  /* Now, the TYPE field is the number of groups the user is member of */
-  /* Don't we just love the inconsistent use of fields!! */
-  nk = trav_path(hive[H_SAM], 0, s, 0);
-  if (!nk) {
-    printf("Cannot find path <%s>\n",s);
-    return;
+  printf("\n=== PROMOTE USER\n\n");
+  printf("Will add the user to the administrator group (0x220)\n"
+	 "and to the users group (0x221). That should usually be\n"
+	 "what is needed to log in and get administrator rights.\n"
+	 "Also, remove the user from the guest group (0x222), since\n"
+	 "it may forbid logins.\n\n");
+  printf("(To add or remove user from other groups, please other menu selections)\n\n");
+  printf("Note: You may get some errors if the user is already member of some\n"
+	 "of these groups, but that is no problem.\n\n");
+
+  fmyinput("Do it? (y/n) [n] : ", yn, 3);
+
+  if (*yn == 'y') {
+
+    printf("* Adding to 0x220 (Administrators) ...\n");
+    sam_add_user_to_grp(hive[H_SAM], rid, 0x220);
+    printf("* Adding to 0x221 (Users) ...\n");
+    sam_add_user_to_grp(hive[H_SAM], rid, 0x221);
+
+    printf("* Removing from 0x222 (Guests) ...\n");
+    sam_remove_user_from_grp(hive[H_SAM], rid, 0x222);
+
+    printf("\nPromotion DONE!\n");
+
+  } else {
+    printf("Nothing done, going back..\n");
   }
-  nk += 4;
-  count = get_val_type(hive[H_SAM],nk,"@",TPF_VK);
-  if (count == -1) {
-    printf("Cannot find value <%s\\@>\n",s);
-    return;
-  }
-  printf("User is member of %d groups.\n",count);
-  
-  /* This is the data size */
-  size = get_val_len(hive[H_SAM],nk,"@",TPF_VK);
-  
-  /* It should be 4 bytes for each group */
-  if (size != count * 4) {
-    printf("DEBUG: Data size %d bytes.\n",size);
-    printf("DEBUG: Size is not 4 * count! May not matter anyway. Continuing..\n");
-  }
-  
-  m = get_val2buf(hive[H_SAM], NULL, nk, "@", 0, TPF_VK);
-  if (!m) {
-    printf("Could not get value data! Giving up.\n");
-    return;
-  }
-  
-  printf("User was member of groups: ");
-  grps = (unsigned int *)&m->data;
-  for (i = 0; i < count; i++) {
-    grp = grps[i];
-    printf("%08x ",grp);
-    switch (grp) {
-    case 0x220: printf("=Administrators, "); break;
-    case 0x221: printf("=Users, "); break;
-    case 0x222: printf("=Guests, "); break;
-    default: printf(", "); break;
-    }
-    snprintf(g,180,"\\SAM\\Domains\\Builtin\\Aliases\\%08X\\C",grp);
-    c = get_val2buf(hive[H_SAM], NULL, 0, g, 0, TPF_VK);
-    if (c) {
-      gcnts = (unsigned int *)&c->data;
-      gcnts[0xc]--;
-      /* Decrease members counter */
-      put_buf2val(hive[H_SAM], c, 0, g, 0, TPF_VK);
-    } else {
-      printf("Group info for %x not found!\n",grp);
-    }
-  }
-#if 1
-  printf("\nDeleting user memberships\n");
-  
-  del_value(hive[H_SAM], nk, "@", TPF_VK);
-  
-  printf("Adding into only administrators:\n");
-  
-  if (!add_value(hive[H_SAM], nk, "@", 1)) { /* Type is # of groups, here 1 */
-    printf("Failed to add @ value to key\n");
-  }
-#endif
-  put_buf2val(hive[H_SAM], &admember, nk, "@", 0, TPF_VK);
-  
-  /* Now bumb up administrator groups count */
-  c = get_val2buf(hive[H_SAM], NULL, 0, "\\SAM\\Domains\\Builtin\\Aliases\\00000220\\C", 0, TPF_VK);
-  if (!c) printf("Group info for 220 (adm) not found!\n");
-  gcnts = (unsigned int *)&c->data;
-  gcnts[0xc]++;
-  put_buf2val(hive[H_SAM], c, 0, "\\SAM\\Domains\\Builtin\\Aliases\\00000220\\C", 0, TPF_VK);
-  
-  printf("Promotion DONE!\n");
-  
+
 }
 
 
+void interactive_remusrgrp(int rid)
+{
+  char inp[20];
+  int grp;
+
+  printf("\n=== REMOVE USER FROM A GROUP\n");
+
+  sam_list_user_groups(hive[H_SAM], rid,0);
+
+  printf("\nPlease enter group number (for example 220), or 0 to go back\n");
+  fmyinput("Group number? : ",inp,16);
+  sscanf(inp, "%x", &grp);
+
+  if (!grp) {
+    printf("Going back..\n");
+    return;
+  }
+
+  printf("Removing user from group 0x%x (%d)\n",grp,grp);
+  printf("Error messages if the user was not member of the group are harmless\n\n");
+
+  sam_remove_user_from_grp(hive[H_SAM], rid, grp);
+
+  printf("\nFinished removing user from group\n\n");
+
+}
+
+
+void interactive_addusrgrp(int rid)
+{
+  char inp[20];
+  int grp;
+
+  printf("\n == ADD USER TO A GROUP\n");
+
+  sam_list_groups(hive[H_SAM], 0, 1);
+
+  printf("\nPlease enter group number (for example 220), or 0 to go back\n");
+  fmyinput("Group number? : ",inp,16);
+  sscanf(inp, "%x", &grp);
+
+  if (!grp) {
+    printf("Going back..\n");
+    return;
+  }
+
+  printf("Adding user to group 0x%x (%d)\n",grp,grp);
+  printf("Error messages if the user was already member of the group are harmless\n\n");
+
+  sam_add_user_to_grp(hive[H_SAM], rid, grp);
+
+  printf("\nFinished adding user to group\n\n");
+
+
+}
 
 
 /* Decode the V-struct, and change the password
@@ -489,27 +326,32 @@ void promote_user(int rid)
 char *change_pw(char *buf, int rid, int vlen, int stat)
 {
    
-   uchar x1[] = {0x4B,0x47,0x53,0x21,0x40,0x23,0x24,0x25};
-   char yn[4];
    int pl;
    char *vp;
    static char username[128],fullname[128];
-   char comment[128],homedir[128],md4[32],lanman[32];
-   char newunipw[34], newp[20], despw[20], newlanpw[16], newlandes[20];
+   char comment[128], homedir[128], newp[20];
    int username_offset,username_len;
    int fullname_offset,fullname_len;
    int comment_offset,comment_len;
    int homedir_offset,homedir_len;
-   int ntpw_len,lmpw_len,ntpw_offs,lmpw_offs,i;
-   int dontchange = 0;
+   int ntpw_len,lmpw_len,ntpw_offs,lmpw_offs;
+   unsigned short acb;
    struct user_V *v;
 
+#ifdef DOCRYPT
+   int dontchange = 0;
+   int i;
+   char md4[32],lanman[32];
+   char newunipw[34], despw[20], newlanpw[16], newlandes[20];
    des_key_schedule ks1, ks2;
    des_cblock deskey1, deskey2;
-
    MD4_CTX context;
    unsigned char digest[16];
-   unsigned short acb;
+   uchar x1[] = {0x4B,0x47,0x53,0x21,0x40,0x23,0x24,0x25};
+#endif
+
+
+   while (1) {  /* Loop until quit input */
 
    v = (struct user_V *)buf;
    vp = buf;
@@ -579,23 +421,17 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
    }
 #endif
 
-   if (stat) {
-     acb = handle_F(rid,0);
-      printf("| %04x | %-30.30s | %-6s | %-8s |\n",
-	     rid, username, (list_user_groups(rid,1) ? "ADMIN" : "") , (  acb & 0x8000 ? "dis/lock" : (ntpw_len < 16) ? "*BLANK*" : "")  );
-      return(username);
-   }
-
+   printf("================= USER EDIT ====================\n");
    printf("\nRID     : %04d [%04x]\n",rid,rid);
    printf("Username: %s\n",username);
    printf("fullname: %s\n",fullname);
    printf("comment : %s\n",comment);
    printf("homedir : %s\n\n",homedir);
    
-   list_user_groups(rid,0);
+   sam_list_user_groups(hive[H_SAM], rid,0);
    printf("\n");
 
-   acb = handle_F(rid,1);
+   acb = sam_handle_accountbits(hive[H_SAM], rid,1);
 
    if (lmpw_len < 16 && gverbose) {
       printf("** LANMAN password not set. User MAY have a blank password.\n** Usually safe to continue. Normal in Vista\n");
@@ -604,8 +440,10 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
    if (ntpw_len < 16) {
       printf("** No NT MD4 hash found. This user probably has a BLANK password!\n");
       if (lmpw_len < 16) {
-	printf("** No LANMAN hash found either. Sorry, cannot change. Try login with no password!\n");
+	printf("** No LANMAN hash found either. Try login with no password!\n");
+#ifdef DOCRYPTO
 	dontchange = 1;
+#endif
       } else {
 	printf("** LANMAN password IS however set. Will now install new password as NT pass instead.\n");
 	printf("** NOTE: Continue at own risk!\n");
@@ -621,6 +459,7 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
      hexprnt("Crypted LM pw: ",(unsigned char *)(vp+lmpw_offs),16);
    }
 
+#ifdef DOCRYPTO
    /* Get the two decrpt keys. */
    sid_to_key1(rid,(unsigned char *)deskey1);
    des_set_key((des_cblock *)deskey1,ks1);
@@ -643,37 +482,49 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
      hexprnt("MD4 hash     : ",(unsigned char *)md4,16);
      hexprnt("LANMAN hash  : ",(unsigned char *)lanman,16);
    }
+#endif  /* DOCRYPTO */
+
 
    printf("\n- - - - User Edit Menu:\n");
-   printf(" 1 - Clear (blank) user password\n"
-	  " 2 - Edit (set new) user password (careful with this on XP or Vista)\n"
-	  " 3 - Promote user (make user an administrator)\n");
-   printf("%s4 - Unlock and enable user account%s\n", (acb & 0x8000) ? " " : "(", 
+   printf(" 1 - Clear (blank) user password\n");
+   printf("%s2 - Unlock and enable user account%s\n", (acb & 0x8000) ? " " : "(", 
 	  (acb & 0x8000) ? " [probably locked now]" : ") [seems unlocked already]");
+   printf(" 3 - Promote user (make user an administrator)\n");
+   printf(" 4 - Add user to a group\n");
+   printf(" 5 - Remove user from a group\n");
+#ifdef DOCRYPTO
+   printf(" 9 - Edit (set new) user password (careful with this on XP or Vista)\n");
+#endif
    printf(" q - Quit editing user, back to user select\n");
 
    pl = fmyinput("Select: [q] > ",newp,16);
 
    if ( (pl < 1) || (*newp == 'q') || (*newp == 'Q')) return(0);
 
+
+   if (*newp == '2') {
+     acb = sam_handle_accountbits(hive[H_SAM], rid,2);
+     // return(username);
+   }
+
    if (*newp == '3') {
-     printf("NOTE: This function is still experimental, and in some cases it\n"
-	    "      may result in stangeness when editing user/group in windows.\n"
-	    "      Also, users (like Guest often is) may still be prevented\n"
-	    "      from login via security/group policies which is not changed.\n");
-     fmyinput("Do you still want to promote the user? (y/n) [n] ",yn,2);
-     if (*yn == 'y' || *yn == 'Y') {
-       promote_user(rid);
-     }
-     return(username);
+     promote_user(rid);
+     // return(username);
    }
 
    if (*newp == '4') {
-     acb = handle_F(rid,2);
-     return(username);
+     interactive_addusrgrp(rid);
+     // return(username);
    }
 
-   if (*newp == '2') {
+   if (*newp == '5') {
+     interactive_remusrgrp(rid);
+     // return(username);
+   }
+
+
+#ifdef DOCRYPT
+   if (*newp == '9') {   /* Set new password */
 
      if (dontchange) {
        printf("Sorry, unable to edit since password seems blank already (thus no space for it)\n");
@@ -740,8 +591,9 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
 
 
    } /* new password */
+#endif /* DOCRYPT */
 
-   else if (pl == 1 && *newp == '1') {
+   if (pl == 1 && *newp == '1') {
      /* Setting hash lengths to zero seems to make NT think it is blank
       * However, since we cant cut the previous hash bytes out of the V value
       * due to missing resize-support of values, it may leak about 40 bytes
@@ -749,6 +601,7 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
       */
      v->ntpw_len = 0;
      v->lmpw_len = 0;
+     dirty = 1;
 
      printf("Password cleared!\n");
    }
@@ -757,66 +610,9 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
    hexprnt("Pw in buffer: ",(vp+ntpw_offs),16);
    hexprnt("Lm in buffer: ",(vp+lmpw_offs),16);
 #endif
-   dirty = 1;
+   } // Forever...
+
    return(username);
-}
-
-
-/* Registry edit wrapper */
-
-void mainloop(void)
-{
-  regedit_interactive(hive, no_hives);
-}
-
-
-/* List users in SAM file
- * pageit - hmm.. forgot this one for this release..
- */
-
-int list_users(int pageit)
-{
-  char s[200];
-  struct keyval *v;
-  int nkofs /* ,vkofs */ ;
-  int rid;
-  int count = 0, countri = 0;
-  struct ex_data ex;
-
-  if (H_SAM < 0) return(1);
-  nkofs = trav_path(hive[H_SAM], 0,"\\SAM\\Domains\\Account\\Users\\Names\\",0);
-  if (!nkofs) {
-    printf("list_users: Cannot find usernames in registry! (is this a SAM-hive?)\n");
-    return(1);
-  }
-
-  printf("| RID -|---------- Username ------------| Admin? |- Lock? --|\n");
-
-  while ((ex_next_n(hive[H_SAM], nkofs+4, &count, &countri, &ex) > 0)) {
-
-    /* Extract the value out of the username-key, value is RID  */
-    snprintf(s,180,"\\SAM\\Domains\\Account\\Users\\Names\\%s\\@",ex.name);
-    rid = get_dword(hive[H_SAM], 0, s, TPF_VK_EXACT|TPF_VK_SHORT);
-    if (rid == 500) strncpy(admuser,ex.name,128); /* Copy out admin-name */
-
-    /* Now that we have the RID, build the path to, and get the V-value */
-    snprintf(s,180,"\\SAM\\Domains\\Account\\Users\\%08X\\V",rid);
-    v = get_val2buf(hive[H_SAM], NULL, 0, s, REG_BINARY, TPF_VK_EXACT);
-    if (!v) {
-      printf("Cannot find value <%s>\n",s);
-      return(1);
-    }
-    
-    if (v->len < 0xcc) {
-      printf("list_users: Value <%s> is too short (only %d bytes) to be a SAM user V-struct!\n",
-	     s, v->len);
-    } else {
-      change_pw( (char *)&v->data , rid, v->len, 1);
-    }
-    FREE(v);
-    FREE(ex.name);
-  }
-  return(0);
 }
 
 
@@ -838,7 +634,7 @@ void find_n_change(char *username)
     snprintf(s,180,"\\SAM\\Domains\\Account\\Users\\Names\\%s\\@",username);
     rid = get_dword(hive[H_SAM],0,s, TPF_VK_EXACT|TPF_VK_SHORT);
     if (rid == -1) {
-      printf("Cannot find value <%s>\n",s);
+      printf("Cannot find user, path is <%s>\n",s);
       return;
     }
   }
@@ -851,7 +647,7 @@ void find_n_change(char *username)
   snprintf(s,180,"\\SAM\\Domains\\Account\\Users\\%08X\\V",rid);
   v = get_val2buf(hive[H_SAM], NULL, 0, s, REG_BINARY, TPF_VK_EXACT);
   if (!v) {
-    printf("Cannot find value <%s>\n",s);
+    printf("Cannot find users V value <%s>\n",s);
     return;
   }
 
@@ -1038,7 +834,7 @@ void handle_syskey(void)
       dirty = 1;
       syskeyreset = 1;
       printf("Updating passwordhash-lengths..\n");
-      list_users(1);
+      sam_list_users(hive[H_SAM], 1);
       printf("* SYSKEY RESET!\nNow please set new administrator password!\n");
     } else {
 
@@ -1056,7 +852,8 @@ void handle_syskey(void)
 void useredit(void)
 {
   char iwho[100];
-  int il;
+  int il, admrid;
+  int rid = 0;
 
   printf("\n\n===== chntpw Edit User Info & Passwords ====\n\n");
 
@@ -1066,18 +863,24 @@ void useredit(void)
   }
 
 
-  list_users(1);
-  
-  while (1) {
-    printf("\nSelect: ! - quit, . - list users, 0x<RID> - User with RID (hex)\n");
-    printf("or simply enter the username to change: [%s] ",admuser);
-    il = fmyinput("",iwho,32);
-    if (il == 1 && *iwho == '.') { printf("\n"); list_users(1); continue; }
-    if (il == 1 && *iwho == '!') return;
-    if (il == 0) strcpy(iwho,admuser);
-    find_n_change(iwho);
-  }
+  admrid = sam_list_users(hive[H_SAM], 1);
 
+  
+  printf("\nPlease enter user number (RID) or 0 to exit: [%x] ", admrid);
+
+  il = fmyinput("",iwho,32);
+
+  if (il == 0) {
+    sprintf(iwho,"0x%x",admrid);
+    rid = admrid;
+  } else {
+    sscanf(iwho, "%x", &rid);
+    sprintf(iwho,"0x%x",rid);   
+  }
+  if (!rid) return;
+
+  find_n_change(iwho);
+  
 }
 
 
@@ -1118,6 +921,23 @@ void recoveryconsole()
 }
 
 
+
+void listgroups(void)
+{
+  char yn[8];
+  int il;
+  int members = 0;
+
+  il = fmyinput("Also list group members? [n] ", yn, 2);
+
+  if (il && (yn[0] == 'y' || yn[0] == 'Y')) members = 1;
+
+  sam_list_groups(hive[H_SAM], members, 1);
+
+}
+
+
+
 /* Interactive menu system */
 
 void interactive(void)
@@ -1137,17 +957,19 @@ void interactive(void)
     /* Make menu selection depending on what is loaded
        but it is still possible to select even if not shown */
 
-    if (H_SAM >= 0) printf("  1 - Edit user data and passwords\n");
-
-#if 0
-    if (H_SAM >= 0 && H_SYS >= 0 && H_SEC >= 0) {
-      printf("  2 - Syskey status & change\n");
+    if (H_SAM >= 0) {
+      printf("  1 - Edit user data and passwords\n");
+      printf("  2 - List groups\n");
     }
-#endif
     if (H_SOF >= 0) {
       printf("  3 - RecoveryConsole settings\n");
       printf("  4 - Show product key (DigitalProductID)\n");
     }
+#if 0
+    if (H_SAM >= 0 && H_SYS >= 0 && H_SEC >= 0) {
+      printf("  8 - Syskey status & change\n");
+    }
+#endif
 
     printf("      - - -\n"
 	   "  9 - Registry editor, now with full write support!\n"
@@ -1160,10 +982,11 @@ void interactive(void)
     if (il) {
       switch(inbuf[0]) {
       case '1': useredit(); break;
-      case '2': handle_syskey(); break;
+      case '2': listgroups(); break;
       case '3': recoveryconsole(); break;
       case '4': cat_dpi(hive[H_SOF],0,"\\Microsoft\\Windows NT\\CurrentVersion\\DigitalProductId"); break;
-      case '9': mainloop(); break;
+      case '8': handle_syskey(); break;
+      case '9': regedit_interactive(hive, no_hives); break;
       case 'q': return; break;
       }
     }
@@ -1171,131 +994,141 @@ void interactive(void)
 }
 
   
-
 void usage(void) {
    printf("chntpw: change password of a user in a Windows SAM file,\n"
 	  "or invoke registry editor. Should handle both 32 and 64 bit windows and\n"
-	  "all version from NT3.x to Win7\n"
+	  "all version from NT3.x to Win8.1\n"
 	  "chntpw [OPTIONS] <samfile> [systemfile] [securityfile] [otherreghive] [...]\n"
 	  " -h          This message\n"
-	  " -u <user>   Username to change, Administrator is default\n"
-	  " -l          list all users in SAM file\n"
-	  " -i          Interactive. List users (as -l) then ask for username to change\n"
+	  " -u <user>   Username or RID (0x3e9 for example) to interactively edit\n"
+	  " -l          list all users in SAM file and exit\n"
+	  " -i          Interactive Menu system\n"
+  //          " -f          Interactively edit first admin user\n"
 	  " -e          Registry editor. Now with full write support!\n"
 	  " -d          Enter buffer debugger instead (hex editor), \n"
           " -v          Be a little more verbose (for debuging)\n"
 	  " -L          For scripts, write names of changed files to /tmp/changed\n"
 	  " -N          No allocation mode. Only same length overwrites possible (very safe mode)\n"
 	  " -E          No expand mode, do not expand hive file (safe mode)\n"
-          "See readme file on how to get to the registry files, and what they are.\n"
+	  
+	  "\nUsernames can be given as name or RID (in hex with 0x first)\n"
+          "\nSee readme file on how to get to the registry files, and what they are.\n"
           "Source/binary freely distributable under GPL v2 license. See README for details.\n"
           "NOTE: This program is somewhat hackish! You are on your own!\n"
 	  );
 }
 
+
 int main(int argc, char **argv)
 {
+  
+  int dodebug = 0, list = 0, inter = 0,edit = 0,il,d = 0, dd = 0, logchange = 0;
+  int mode = HMODE_INFO;
+  extern int /* opterr, */ optind;
+  extern char* optarg;
+  char *filename,c;
+  char *who = "Administrator";
+  char iwho[100];
+  FILE *ch;     /* Write out names of touched files to this */
    
-   int dodebug = 0, list = 2, inter = 0,edit = 0,il,d = 0, dd = 0, logchange = 0, mode = 0;
-   extern int /* opterr, */ optind;
-   extern char* optarg;
-   char *filename,c;
-   char *who = "Administrator";
-   char iwho[100];
-   FILE *ch;     /* Write out names of touched files to this */
-   
-   char *options = "LENidehlvu:";
-   
-   printf("%s\n",chntpw_version);
-   while((c=getopt(argc,argv,options)) > 0) {
-      switch(c) {
-       case 'd': dodebug = 1; break;
-       case 'e': edit = 1; break;
-       case 'L': logchange = 1; break;
-       case 'N': mode |= HMODE_NOALLOC; break;
-       case 'E': mode |= HMODE_NOEXPAND; break;
-       case 'l': list = 1; who = 0; break;
-       case 'v': mode |= HMODE_VERBOSE; gverbose = 1; break;
-       case 'i': list = 2; who = 0; inter = 1; break;
-       case 'u': who = optarg; list = 2; break;
-       case 'h': usage(); exit(0); break;
-       default: usage(); exit(1); break;
+  char *options = "LENidehflvu:";
+  
+  while((c=getopt(argc,argv,options)) > 0) {
+    switch(c) {
+    case 'd': dodebug = 1; break;
+    case 'e': edit = 1; break;
+    case 'L': logchange = 1; break;
+    case 'N': mode |= HMODE_NOALLOC; break;
+    case 'E': mode |= HMODE_NOEXPAND; break;
+    case 'l': list = 1; break;
+    case 'v': mode |= HMODE_VERBOSE; gverbose = 1; break;
+    case 'i': inter = 1; break;
+    case 'u': who = optarg; break;
+    case 'h': usage(); exit(0); break;
+    default: usage(); exit(1); break;
+    }
+  }
+
+  printf("%s\n",chntpw_version);
+
+  filename=argv[optind];
+  if (!filename || !*filename) {
+    usage(); exit(1);
+  }
+  do {
+    if (!(hive[no_hives] = openHive(filename,
+				    HMODE_RW|mode))) {
+      fprintf(stderr,"%s: Unable to open/read a hive, exiting..\n",argv[0]);
+      exit(1);
+    }
+    switch(hive[no_hives]->type) {
+    case HTYPE_SAM:      H_SAM = no_hives; break;
+    case HTYPE_SOFTWARE: H_SOF = no_hives; break;
+    case HTYPE_SYSTEM:   H_SYS = no_hives; break;
+    case HTYPE_SECURITY: H_SEC = no_hives; break;
+    }
+    no_hives++;
+    filename = argv[optind+no_hives];
+  } while (filename && *filename && no_hives < MAX_HIVES);
+  
+  
+  if (dodebug) {
+    debugit(hive[0]->buffer,hive[0]->size);
+  } else {
+    if (H_SAM != -1) max_sam_lock = sam_get_lockoutinfo(hive[H_SAM], 0);
+    if (inter) {
+      interactive();
+    } else if (edit) {
+      regedit_interactive(hive, no_hives);
+    } else if (list) {
+      sam_list_users(hive[H_SAM], 1);
+    } else if (who) {
+      find_n_change(who);
+    }
+  }
+  
+
+  if (list != 1) {
+    printf("\nHives that have changed:\n #  Name\n");
+    for (il = 0; il < no_hives; il++) {
+      if (hive[il]->state & HMODE_DIRTY) {
+	if (!logchange) printf("%2d  <%s>",il,hive[il]->filename);
+	if (hive[il]->state & HMODE_DIDEXPAND) printf(" WARNING: File was expanded! Expermental! Use at own risk!\n");
+	printf("\n");
+	
+	d = 1;
       }
-   }
-   filename=argv[optind];
-   if (!filename || !*filename) {
-      usage(); exit(1);
-   }
-   do {
-     if (!(hive[no_hives] = openHive(filename,
-				     HMODE_RW|mode))) {
-       printf("Unable to open/read a hive, exiting..\n");
-       exit(1);
-     }
-     switch(hive[no_hives]->type) {
-       case HTYPE_SAM:      H_SAM = no_hives; break;
-       case HTYPE_SOFTWARE: H_SOF = no_hives; break;
-       case HTYPE_SYSTEM:   H_SYS = no_hives; break;
-       case HTYPE_SECURITY: H_SEC = no_hives; break;
-     }
-     no_hives++;
-     filename = argv[optind+no_hives];
-   } while (filename && *filename && no_hives < MAX_HIVES);
-      
-   if (dodebug) debugit(hive[0]->buffer,hive[0]->size);
-   else {
-
-     check_get_samdata();
-     if (list && !edit && !inter) {
-       if ( list_users(1) ) edit = 1;
-     }
-     if (edit) mainloop();
-     else if (who) { handle_syskey(); find_n_change(who); }
-
-     if (inter) interactive();
-   }
-   
-   if (list != 1) {
-     printf("\nHives that have changed:\n #  Name\n");
-     for (il = 0; il < no_hives; il++) {
-       if (hive[il]->state & HMODE_DIRTY) {
-	 if (!logchange) printf("%2d  <%s>",il,hive[il]->filename);
-	 if (hive[il]->state & HMODE_DIDEXPAND) printf(" WARNING: File was expanded! Expermental! Use at own risk!\n");
-	 printf("\n");
-
-	 d = 1;
-       }
-     }
-     if (d) {
-       /* Only prompt user if logging of changed files has not been set */
-       /* Thus we assume confirmations are done externally if they ask for a list of changes */
-       if (!logchange) fmyinput("Write hive files? (y/n) [n] : ",iwho,3);
-       if (*iwho == 'y' || logchange) {
-	 if (logchange) {
-	   ch = fopen("/tmp/changed","w");
-	 }
-	 for (il = 0; il < no_hives; il++) {
-	   if (hive[il]->state & HMODE_DIRTY) {
-	     printf("%2d  <%s> - ",il,hive[il]->filename);
-	     if (!writeHive(hive[il])) {
-	       printf("OK");
-	       if (hive[il]->state & HMODE_DIDEXPAND) printf(" WARNING: File was expanded! Expermental! Use at own risk!\n");
-	       printf("\n");
-	       if (logchange) fprintf(ch,"%s ",hive[il]->filename);
-	       dd = 2;
-	     }
-	   }
-	 }
-	 if (logchange) {
-	   fprintf(ch,"\n");
-	   fclose(ch);
-	 }
-       } else {
-	 printf("Not written!\n\n");
-       }
-     } else {
-       printf("None!\n\n");
-     }
-   } /* list only check */
-   return(dd);
+    }
+    if (d) {
+      /* Only prompt user if logging of changed files has not been set */
+      /* Thus we assume confirmations are done externally if they ask for a list of changes */
+      if (!logchange) fmyinput("Write hive files? (y/n) [n] : ",iwho,3);
+      if (*iwho == 'y' || logchange) {
+	if (logchange) {
+	  ch = fopen("/tmp/changed","w");
+	}
+	for (il = 0; il < no_hives; il++) {
+	  if (hive[il]->state & HMODE_DIRTY) {
+	    printf("%2d  <%s> - ",il,hive[il]->filename);
+	    if (!writeHive(hive[il])) {
+	      printf("OK");
+	      if (hive[il]->state & HMODE_DIDEXPAND) printf(" WARNING: File was expanded! Expermental! Use at own risk!\n");
+	      printf("\n");
+	      if (logchange) fprintf(ch,"%s ",hive[il]->filename);
+	      dd = 2;
+	    }
+	  }
+	}
+	if (logchange) {
+	  fprintf(ch,"\n");
+	  fclose(ch);
+	}
+      } else {
+	printf("Not written!\n\n");
+      }
+    } else {
+      printf("None!\n\n");
+    }
+  } /* list only check */
+  return(dd);
 }

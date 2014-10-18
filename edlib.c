@@ -4,6 +4,8 @@
  * Point of this is so that interactive registry editor
  * can be accessed from several other programs
  * 
+ * 2013-aug: Some minor bugfixes and adjustments
+ *           Thanks to David Collett for catching and fixing bug in REG_MULTI_SZ editing.
  * 2010-jun: New function from  Aleksander Wojdyga: dpi, decode product ID
  *           Mostly used on \Microsoft\Windows NT\CurrentVersion\DigitalProductId
  *           Now as command in registry editor, but may be moved to chnpw menu later.
@@ -23,7 +25,7 @@
  *
  *****
  *
- * Copyright (c) 1997-2011 Petter Nordahl-Hagen.
+ * Copyright (c) 1997-2014 Petter Nordahl-Hagen.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,7 +50,7 @@
 
 #include "ntreg.h"
 
-const char edlib_version[] = "edlib version 0.1 110511, (c) Petter N Hagen";
+const char edlib_version[] = "edlib version 0.1 140201, (c) Petter N Hagen";
 
 #define ALLOC_DEBUG 0     /* Reg allocation debug hooks */
 #define ADDBIN_DEBUG 0     /* Reg expansion debug hooks */
@@ -221,8 +223,8 @@ void cat_vk(struct hive *hdesc, int nkofs, char *path, int dohex)
   data = (void *)&(kv->data);
 
 
-  printf("Value <%s> of type %s, data length %d [0x%x]\n", path,
-	 (type < REG_MAX ? val_types[type] : "(unknown)"), len, len);
+  printf("Value <%s> of type %s (%x), data length %d [0x%x]\n", path,
+	 (type < REG_MAX ? val_types[type] : "(unknown)"), type, len, len);
 
   if (dohex) type = REG_BINARY;
   switch (type) {
@@ -277,8 +279,8 @@ void edit_val(struct hive *h, int nkofs, char *path)
   }
   len = kv->len;
 
-  printf("EDIT: <%s> of type %s with length %d [0x%x]\n", path,
-	 (type < REG_MAX ? val_types[type] : "(unknown)"),
+  printf("EDIT: <%s> of type %s (%x) with length %d [0x%x]\n", path,
+	 (type < REG_MAX ? val_types[type] : "(unknown)"), type,
 	 len, len);
 
   switch(type) {
@@ -364,15 +366,19 @@ void edit_val(struct hive *h, int nkofs, char *path)
     if (strcmp("--Q", inbuf)) {  /* We didn't bail out */
       if (newstring) newstring = realloc(newstring, in+1);
       else newstring = malloc(in+1);
+
+
       if (type == REG_MULTI_SZ) {
-	in++;
 	*(newstring+in) = '\0';  /* Must add null termination */
+	in++;
       }
+
       ALLOC(newkv,1,(in<<1)+sizeof(int));
+
       newkv->len = in<<1;
-      printf("newkv->len: %d\n",newkv->len);
+      VERBF(h,"newkv->len: %d\n",newkv->len);
       cheap_ascii2uni(newstring, (char *)&(newkv->data), in);
-      
+
       d = 1;
 
       FREE(kv);
@@ -456,7 +462,7 @@ void regedit_interactive(struct hive *hive[], int no_hives)
 {
   struct hive *hdesc;
   int cdofs, newofs;
-  struct nk_key *cdkey;
+  //  struct nk_key *cdkey;
   char inbuf[100], *bp, *file, *prefix;
   char path[1000];
   int l, vkofs, nh, i;
@@ -474,7 +480,7 @@ void regedit_interactive(struct hive *hive[], int no_hives)
   printf("Simple registry editor. ? for help.\n");
 
   while (1) {
-    cdkey = (struct nk_key *)(hdesc->buffer + cdofs);
+    // cdkey = (struct nk_key *)(hdesc->buffer + cdofs);
 
     *path = 0;
     get_abs_path(hdesc,cdofs+4, path, 50);

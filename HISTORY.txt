@@ -1,13 +1,53 @@
 
 The Offline NT Password Editor
 
-(c) 1997-2011 Petter Nordahl-Hagen
+(c) 1997-2014 Petter Nordahl-Hagen
 
 See README for general info, copyright & credits.
 See INSTALL for compile/installation instructions.
 
 Revision history 
 (tools only, see website for info on bootdisk revisions)
+
+* v 1.00 140201 (beta releases to some people dated 1308xx)
+
+samlib: 
+new library, contains functions for user and group
+manipulation and low level SID functions. Main features:
+- add user to local group
+- remove user from local group
+- reset user password
+- list users and groups, with memberships etc
+- SID handling routines (binary to/from string etc) required by
+  group/user edit functions
+- updates both group and user correctly, thus finally user "promotion" works!
+
+regedit library:
+- Enter buil-in buffer debugger only if in trace mode, else return error or abort()
+- Fixed critical bug in del_value which could
+  thrash the hive when removing value in bottom of key.
+- And a pointer not reinitialized when buffer reallocated in some cases, fixed.
+  Thanks to Jacky To for reporting those two.
+- Some minor adjustments for compiler. A few more utility functions.
+
+sampasswd:
+new command line utility
+- Can be used to reset users passwords from scripts (non interactive)
+- Also a few list options, also can supply parsable output
+
+samusrgrp:
+new command line utility
+- edit group memberships (non interactive)
+- some list functions, parsable
+
+chntpw:
+- Now dedicated to interactive edits
+- Now supports full local group membership edits, finally working promotion!
+- A lot of users complained about user select being difficult to exit
+  (not understanding to use ! to quit), so after user edit, return
+  is to main menu or program exit (if not -i option)
+- User edit (reset, promote etc) now loops instead until q for quit
+
 
 * v 0.99.6 110511
 

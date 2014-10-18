@@ -13,7 +13,7 @@
  *
  *****
  *
- * Copyright (c) 1997-2010 Petter Nordahl-Hagen.
+ * Copyright (c) 1997-2014 Petter Nordahl-Hagen.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@
 #include "ntreg.h"
 
 
-const char reged_version[] = "reged version 0.1 110511, (c) Petter N Hagen";
+const char reged_version[] = "reged version 0.1 140201, (c) Petter N Hagen";
 
 
 /* Global verbosity flag */

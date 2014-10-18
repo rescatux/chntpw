@@ -1,0 +1,513 @@
+
+The Offline Windows Password Editor
+(c) 1997-2014 Petter Nordahl-Hagen
+
+Command line utilities
+
+All these programs need one (or more) registry files to work on.
+These are the binary registry files, called "hives" that usually are
+located on a Windows machine under \WINDOWS\System32\config
+where the most important ones are:
+SAM - HKEY_LOCAL_MACHINE\SAM, Security Accounts Manager
+      contains local user / group info, user passwords are here
+SYSTEM - HKEY_LOCAL_MACHINE\SYSTEM: System settings / configuration
+         (services, drivers, hardware info, some boot config)
+SOFTWARE - HKEY_LOCAL_MACHINE\SOFTARE: Config and info of installed
+           software and a lot of higher level windows config
+
+Note that these programs (and the registry library they use) does not
+join all these files in the same tree like windows does.
+For example, a path like
+HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Control
+is not valid, it is instead just
+ControSet001\Control
+(after selecting the hive if more than one is loaded)
+But except if you use the registry edit or export/import functions you
+do not need think about this as for other things the tools handle
+this.
+
+
+chntpw: Program for interactively resetting passwords and group
+memberships.
+My boot CD runs this with options -i -L SAM
+
+  chntpw: change password of a user in a Windows SAM file,
+  or invoke registry editor. Should handle both 32 and 64 bit windows and
+  all version from NT3.x to Win8
+  chntpw [OPTIONS] <samfile> [systemfile] [securityfile] [otherreghive] [...]
+   -h          This message
+   -u <user>   Username or RID (0x3e9 for example) to interactively edit
+   -l          list all users in SAM file and exit
+   -i          Interactive Menu system
+   -f          Interactively edit first admin user
+   -e          Registry editor. Now with full write support!
+   -d          Enter buffer debugger instead (hex editor), 
+   -v          Be a little more verbose (for debuging)
+   -L          For scripts, write names of changed files to /tmp/changed
+   -N          No allocation mode. Only same length overwrites possible (very safe mode)
+   -E          No expand mode, do not expand hive file (safe mode)
+
+
+
+ -u <user>   Username or RID (0x3e9 for example) to interactively edit
+
+Invoke the interactive edit menu on specified user.
+Specifying a user name will most likely fail if user has international
+character, so better to use user ID (RID), for example
+ chnptw -u 0x3e9 SAM
+to edit user with hexadecimal RID 3e9
+
+
+ -l          list all users in SAM file and exit
+
+Just that, list users in human readable form, with some info about if
+user is admin and if password is set.
+
+ -i          Interactive Menu system
+
+Invokes the menu system. Menu items will vary a bit depending on what
+registry hives are loaded.
+
+ -f          Interactively edit first admin user
+
+Select first admin user for edit. This is user with lowest RID that
+also is member of administators group, or built-in user 0x1f4 if not
+others possible.
+
+ -e          Registry editor. Now with full write support!
+
+Enter the registry editor. It is a small command system. ? for help
+there. See other documentation for more on regedits.
+
+ -d          Enter buffer debugger instead (hex editor), 
+
+Command line type hex editor, mostly for debugging purposes. ? for help.
+
+ -v          Be a little more verbose (for debuging)
+
+Lots of debug output during most operations (especially hive loading)
+
+ -L          For scripts, write names of changed files to /tmp/changed
+
+If any of the other functions changes the registry, the changed files
+are listed here. Can be used by wrapper scripts to know what to save.
+My boot CD uses it.
+
+ -N          No allocation mode. Only same length overwrites possible (very safe mode)
+
+Safe mode. Will only allow changes in registry that overwrites old
+values with same length data. Password reset only changes 2 bytes, and
+does not change value lenght, so password reset will still work in
+this safe mode. If something tries to violate this safe mode, a lot of
+error messages (some of the rather obscure) may occur.
+
+ -E          No expand mode, do not expand hive file (safe mode)
+
+Safe mode. Does not allow expanding the size of the file, but will
+allow adding keys/values as long as there is free space in the file
+already. (most files contains some free space)
+If expansion is needed but not allowed by this option,
+a lot of obscure error messages may occur, and file should not be saved.
+
+-------------------------------------------------------------------------
+
+reged: Registry editor and export and import of .reg files.
+
+  reged version 0.1 110511, (c) Petter N Hagen
+
+  Modes:
+  -x <registryhivefile> <prefixstring> <key> <output.reg>
+     Xport. Where <prefixstring> for example is HKEY_LOCAL_MACHINE\SOFTWARE
+     <key> is key to dump (recursively), \ or \\ means all keys in hive
+     Only one .reg and one hive file supported at the same time
+  -I <registryhivefile> <prefixstring> <input.reg>
+     Import from .reg file. Where <prefixstring> for example is HKEY_LOCAL_MACHINE\SOFTWARE
+     Only one .reg and one hive file supported at the same time
+  -e <registryhive> ...
+     Interactive edit one or more of registry files
+
+  Options:
+  -L : Log changed filenames to /tmp/changed, also auto-saves
+  -C : Auto-save (commit) changed hives without asking
+  -N : No allocate mode, only allow edit of existing values with same size
+  -E : No expand mode, do not expand hive file (safe mode)
+  -t : Debug trace of allocated blocks
+  -v : Some more verbose messages
+
+
+Modes:
+-x <registryhivefile> <prefixstring> <key> <output.reg>
+   Xport. Where <prefixstring> for example is HKEY_LOCAL_MACHINE\SOFTWARE
+   <key> is key to dump (recursively), \ or \\ means all keys in hive
+   Only one .reg and one hive file supported at the same time
+
+Exports everything below the specified <key> of the hive to .reg file.
+Since the program does not care about what part of the registry
+Windows thinks it is, you must specify the prefix if the .reg file
+needs to be used in Windows.
+Prefix is like
+HKEY_LOCAL_MACHINE\SOFTWARE for software hive file
+HKEY_LOCAL_MACHINE\SYSTEM for system hive file
+and so on, look in regedit.exe in windows for details.
+
+To dump the whole hive, use \ or \\ or . as the key.
+Examples:
+
+  reged -x system HKEY_LOCAL_MACHINE\\SYSTEM ControlSet001 output.reg
+
+should export everything below ControlSet001 key from registry hive
+file named system into .reg file named output.reg, using
+HKEY_LOCAL_MACHINE\SYSTEM in front of every key name in the .reg file.
+(in most shells \\ is needed to ignore the meaning \ has to the shell)
+
+  reged -x system HKEY_LOCAL_MACHINE\\SYSTEM ControlSet001\\Enum output.reg
+
+same, but start from ControlSet001\Enum
+
+  reged -x system HKEY_LOCAL_MACHINE\\SYSTEM \\ output.reg
+
+export everything in the system file
+
+
+
+  -I <registryhivefile> <prefixstring> <input.reg>
+     Import from .reg file. Where <prefixstring> for example is HKEY_LOCAL_MACHINE\SOFTWARE
+     Only one .reg and one hive file supported at the same time
+
+Reverse of -x, this reads from a .reg file and puts it into the hive
+file, just like regedit.exe foobar.reg will do in windows.
+The <prefixstring> is removed from the start of each key name, if you
+specify this wrong, the result may not be what you expected.
+KNOWN PROBLEM: This routine is slow, very slow indeed on binary values (has
+hex numbers in .reg file). May take over 5 minutes to import a file
+the size of a normal XP software-hive .reg export.
+Problems / unusual things in the .reg file may cause crash or
+unexpected data or some times even an error messsage! :)
+
+KNOWN PROBLEMS: May bork on some wide character (UTF16) .reg files.
+(crash or does not do exactly what you would expect)
+
+  -e <registryhive> ...
+     Interactive edit one or more of registry files
+
+Enter the registry editor. It is a small command system. ? for help
+there. See other documentation for more on regedits.
+If both -I and -e given, editor will be entered after import, but
+before save, so you can check things if you need.
+
+
+ Options:
+ -L : Log changed filenames to /tmp/changed, also auto-saves
+ -C : Auto-save (commit) changed hives without asking
+
+Usually this command prompts for save, since import may have messed up.
+
+-N : No allocate mode, only allow edit of existing values with same size
+-E : No expand mode, do not expand hive file (safe mode)
+
+same as on chntpw
+
+-t : Debug trace of allocated blocks
+
+lot of hive load debug info. very much. allocator debug.
+
+-v : Some more verbose messages
+
+a bit debug messages
+
+** In interactive registry editor:
+<keyname> name of a key (not a path), ex: MyKey
+<valuename> name of a value (not a path), ex: MyCoolValueName
+<keypath> may be a path, ex: foobar\baz\gazonk
+as usual with paths, \ starts from the root key, without it is relative to
+current key
+<valuepath> value, may have path. ex: \foo\bar\MyValue
+is value named MyValue in key bar in key foo
+cd .. goes back a directory
+
+
+List subkeys and values in current key
+  dir
+  ls
+
+Change current key:
+  cd <keypath>
+  cd ..        # goes back a key
+
+Show a value, tries to show according to type, else hexdump
+  type <valuepath>
+  cat <valuepath>
+
+Hexdump value data (no matter what type it is)
+  hex <valuepath>
+
+Edit a value:
+  ed <valupath>
+and it will show old value and ask for new
+
+Make a new key (cannot be a path)
+  nk <keyname>
+
+Delete a key, key must be empty, cannot be a path
+  dk <keyname>
+
+Delete a value, cannot be a path
+  dv <valuename>
+
+Delete all values in current key (no questions asked!)
+  delallv
+
+Delete recursively key and all keys under it (no questions asked)
+May take some time if large tree
+  rdel <keyname>
+
+Make a new value of selected type. It will be empty, use 'ed' afterwards.
+  nv <type> <valuename>
+Where type is a hex number, from this list:
+  0 : REG_NONE
+  1 : REG_SZ
+  2 : REG_EXPAND_SZ
+  3 : REG_BINARY
+  4 : REG_DWORD
+  5 : REG_DWORD_BIG_ENDIAN
+  6 : REG_LINK
+  7 : REG_MULTI_SZ
+  8 : REG_RESOUCE_LIST
+  9 : REG_FULL_RES_DESC
+  a : REG_RES_REQ
+  b : REG_QWORD
+it will not prevent you from using other numbers
+
+Show key class data, in hexdump (class data has no special type)
+  ck <keypath>
+
+Export to .reg file, same as -x option above
+  ek <filename.reg> <prefix> <keyname>
+
+
+
+
+
+------------------------------
+
+samusrgrp
+is a command line tool to add users to groups or remove users from
+groups. Users and groups must be local (cannot be domain / AD).
+It can also list the groups with their members in several forms, the
+output can be used in scripts of course.
+
+Listing groups will also list domain users that are members of the
+group (if any), but it will not be able to look up the name, so it
+will be listed as a SID only.
+
+  samusrgrp version 0.2 130501, (c) Petter N Hagen
+  ./samusrgrp  [-a|-r] -u <user> -g <groupid> <samhive>
+  Add or remove a (local) user to/from a group
+  Mode:
+     -a = add user to group
+     -r = remove user from group
+     -l = list groups
+     -L = list groups and also their members
+     -s = Print machine SID
+
+For add or remove, you must also specify a bit more info:
+
+  Parameters:
+     <user> can be given as a username or a RID in hex with 0x in front
+     <group> is the group number, in hex with 0x in front
+     Example:
+     -a -u theboss -g 0x220 -> add user named 'theboss' group hex 220 (administrators)
+     -a -u 0x3ea -g 0x221 -> add user with RID (hex) 3ea group hex 221 (users)
+     -r -u 0x3ff -g 0x220 -> remove user RID 0x3ff from grp 0x220
+     Note that usernames with international characters usually fails to be found
+     so please use RID number instead
+     If success, there will be no output, and exit code is 0
+     Also, success if user already in (or not in if -r) the group
+
+  Options:
+     -H : Human readable output, else parsable
+     -N : No allocate mode, only allow edit of existing values with same size
+     -E : No expand mode, do not expand hive file (safe mode)
+     -t : Debug trace of allocated blocks
+     -v : Some more verbose messages/debug
+
+  Multi call binary, if program is named:
+    samusrtogrp -- Assume -a mode: Add a user into a group
+    samusrfromgrp -- Assume -r mode: Remove user from a group
+
+Example of group listing:
+
+
+ samusrgrp -L SAM
+
+will list groups with member users, for example:
+
+222:Guests:0:1f4:Administrator:S-1-5-21-596911364-3511430013-269812654-500
+222:Guests:1:1f5:Guest:S-1-5-21-596911364-3511430013-269812654-501
+223:Power Users:0:1f4:Administrator:S-1-5-21-596911364-3511430013-269812654-500
+223:Power Users:1:1f5:Guest:S-1-5-21-596911364-3511430013-269812654-501
+223:Power Users:2:3e9:foo:S-1-5-21-596911364-3511430013-269812654-1001
+
+Fields are:
+Group ID (hex)
+Group name
+Member number (starts at 0)
+Members RID (hex)
+Members name (if available, else SID)
+Members SID
+
+So in this example, the Guests group have 2 members: Administrator and
+Guest.
+At the time of writing this, it WILL NOT LIST EMPTY GROUPS (no
+members). I plan to change this, empty groups on one line with -1 in
+member number field, and rest of user fields empty.
+
+ samusrgrp -l SAM
+
+will list groups (no members)
+
+220:Administrators:2
+221:Users:2
+222:Guests:1
+223:Power Users:0
+
+Fields are:
+
+Group ID (hex)
+Group name
+Number of members
+
+this listing will show all groups, also empty groups.
+
+
+-------------------------------------------------
+
+sampasswd
+Password reset from command line (scriptable)
+Or list users in SAM file in a few different formats.
+
+
+
+  ./sampasswd  [-r|-l] [-H] -u <user> <samhive>
+  Reset password or list users in SAM database
+  Mode:
+     -r = reset users password
+     -l = list users in sam
+
+One mode must be selected
+
+  Parameters:
+     <user> can be given as a username or a RID in hex with 0x in front
+     Example:
+     -r -u theboss -> resets password of user named 'theboss' if found
+     -r -u 0x3ea -> resets password for user with RID 0x3ea (hex)
+     -r -a -> Reset password of all users in administrators group (0x220)
+     -r -f -> Reset password of admin user with lowest RID
+              not counting built-in admin (0x1f4) unless it is the only admin
+     Note that usernames with international characters usually fails to be found
+     so please use RID number instead
+     If success, there will be no output, and exit code is 0
+
+  Options:
+     -H : For list: Human readable listing (default is parsable table)
+     -H : For reset: Will output confirmation message if success
+     -N : No allocate mode, only allow edit of existing values with same size
+     -E : No expand mode, do not expand hive file (safe mode)
+     -t : Debug trace of allocated blocks
+     -v : Some more verbose messages/debug
+
+List examples:
+
+ sampasswd -l xpreg/SAM
+
+01f4:Administrator:1:210:14
+01f5:Guest:0:8215:4
+03e8:HelpAssistant:0:8211:14
+03e9:foo:1:210:14
+
+Fields are:
+
+User RID (hex)
+User name
+Is user admin? (1 = yes, 0 = no) (member of group ID 0x220)
+Account flags, ACB (hex). See sam.h file.
+Password hash length. 14 = normal password. 0 or 4 = probably blank.
+
+The bulk reset (-r -a) will also output parsable result:
+
+
+ sampasswd -H -r -a xpreg/SAM
+
+Reset user :01f4:Administrator
+Reset user :03e9:pnh
+
+which of course is :RID:username
+
+
+Explanation on this:
+     -r -f -> Reset password of admin user with lowest RID
+              not counting built-in admin (0x1f4) unless it is the only admin
+
+All windows from NT3.1 up has a system created administrator account
+with RID (user ID) 0x1f4 (500 decimal)
+
+Before Windows XP the installer asked for a password for this account,
+and then it was used to login first after installation.
+(Built-in guest account was also created by the installer, but it has
+always been disabled by default)
+
+On Windows XP and newer systems, the installer also creates this
+account, but locks it down, it generally cannot be logged in. It is
+also not shown on the welcome screen (unless all other users are
+deleted or disabled)
+The installer instead asks for a user to create during install. That
+user is a normal non-hardwired user (RID > 0x3e8, 1000 decimal),
+and it is added to the built-in administrators group (group # 0x220). 
+
+It is users in the built-in group 0x220 that generally has full
+administrator rights to the machine.
+
+(XP installer can create several users, but only first gets group
+0x220)
+
+More users can of course be added from the control panel, and they can
+be put into the 0x220 group if neccessary. From the "simplified"
+control panel dialog this is what happens if user is selected to be able to
+have full (or admin) access to the machine. If user is set to "normal"
+or something like that, it is not in the 0x220 group.
+
+From the "Users and Groups" part of the administrative tools (not
+available on some home versions of windows) the group assignments and
+other user info can be changed in more detail of course.
+From there, users in a domain (if machine is in domain) can also be
+added to the local 0x220 group, the domain user full access to that
+local machine even if the user is nothing special in the domain.
+
+Anyway..
+On XP and newer, it is therefore not the hardwired 0x1f4 account that is
+used for admim. On home machines it is most often the first regular one (since
+most people do not change any user stuff after the installer) or it
+could be any other user in the list.
+
+So this reset function picks the first it finds over 0x3e8 (1000)
+that is also in the 0x220 group. It will most likely work for 98% of
+home user machines :) Unless there are no users in the 0x220 group,
+then it picks the 0x1f4 hard-wired user (since it may be Windows
+2000??????).
+
+This may of course be wrong if someone managed to remove all accounts
+above 1000 from the 0x220 group. But then they have "samusrgrp" to add
+someone back :)
+
+
+Explanation on -a -r:
+
+The -r -a option will reset all users in the 0x220 group. Also user
+0x1f4, which maybe is bad.. will consider changing this...
+
+
+
+
+
+
+
