@@ -1,5 +1,5 @@
 /*
- * sampasswd.c - SAM database, add or remove user in a group
+ * sampasswd.c - SAM database, reset user password or account bits
  * 
  * Command line utility, non-interactive to reset user password and/or
  * account bits for a user in the SAM database
