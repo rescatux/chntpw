@@ -243,7 +243,7 @@ int main(int argc, char **argv)
 
   wret = 0;
   for (il = 0; il < no_hives; il++) {
-    //    wret |= writeHive(hive[il]);
+    wret |= writeHive(hive[il]);
     if (hive[il]->state & HMODE_DIDEXPAND)
       fprintf(stderr," WARNING: Registry file %s was expanded! Experimental! Use at own risk!\n",hive[il]->filename);  
     while (no_hives > 0)
