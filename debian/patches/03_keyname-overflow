@@ -1,0 +1,21 @@
+--- a/ntreg.c
++++ b/ntreg.c
+@@ -2607,7 +2607,6 @@
+     int count = 0;
+     int countri = 0;
+     int len, byte;
+-    char keyname[128];
+     char path[1024];
+     char *value;
+     struct nk_key *key;
+@@ -2626,10 +2625,6 @@
+ 
+     // get the key
+     key = (struct nk_key *)(hdesc->buffer + nkofs);
+-    strncpy(keyname, key->keyname, key->len_name);
+-    keyname[key->len_name] = '\0';
+-    printf("Exporting key '%s' with %d subkeys and %d values...\n",
+-            keyname, key->no_subkeys, key->no_values);
+ 
+     *path = 0;
+     get_abs_path(hdesc, nkofs, path, 1024);

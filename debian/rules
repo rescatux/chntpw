@@ -1,0 +1,106 @@
+#!/usr/bin/make -f
+# Sample debian/rules that uses debhelper.
+# GNU copyright 1997 to 1999 by Joey Hess.
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+# This is the debhelper compatibility version to use.
+# export DH_COMPAT=5
+
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+include /usr/share/quilt/quilt.make
+
+CFLAGS = -DUSELIBGCRYPT -Wall
+
+ifneq (,$(findstring debug,$(DEB_BUILD_OPTIONS)))
+	CFLAGS += -g
+endif
+ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
+	INSTALL_PROGRAM += -s
+endif
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+        CFLAGS += -O0
+else
+		CFLAGS += -O2
+endif
+
+build: build-arch build-indep
+build-arch: build-stamp
+build-indep: build-stamp
+build-stamp: $(QUILT_STAMPFN)
+	dh_testdir
+	$(MAKE) CFLAGS="$(CFLAGS)"
+	touch build-stamp
+
+clean: unpatch
+	dh_testdir
+	dh_testroot
+	[ ! -f Makefile ] || $(MAKE) clean
+	-rm -f *.gif
+	rm -f build-stamp 
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_prep
+	dh_installdirs
+	install -m 755 chntpw $(CURDIR)/debian/chntpw/usr/sbin/
+	install -m 755 reged $(CURDIR)/debian/chntpw/usr/sbin/
+	install -m 755 sampasswd $(CURDIR)/debian/chntpw/usr/sbin/
+	install -m 755 samusrgrp $(CURDIR)/debian/chntpw/usr/sbin/
+
+
+binary-indep: build-indep install
+# We have nothing to do here
+
+binary-arch: build-arch install
+	dh_testdir
+	dh_testroot
+	# Do not install the documentation until available
+	[ ! -f faq.uu ] || for i in *.uu; do uudecode  $$i; done
+	[ ! -f faq.html ] || dh_installdocs faq.html bootdisk.html *.gif
+	dh_installdocs
+	dh_installexamples
+	dh_installman debian/chntpw.8 debian/samusrgrp.8 debian/reged.8 debian/sampasswd.8
+	dh_installchangelogs HISTORY.txt
+	dh_link
+	dh_strip
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+
+UPSTREAM_VER=140201
+UPSTREAM_URL=http://pogostick.net/~pnh/ntpasswd
+UPSTREAM_FILE=chntpw-source-$(UPSTREAM_VER).zip
+PACKNAME=chntpw
+DEBIAN_VER=1.0
+UNPACK_DIR=$(PACKNAME)-$(DEBIAN_VER).orig
+EXTRACT_DIR=/tmp
+
+update-docs:
+	for file in faq.html bootdisk.html syskey.txt regedit.txt ; do \
+		wget -q -O $$file $(UPSTREAM_URL)/$$file; \
+	done
+
+get-orig-source:
+	wget -O $(UPSTREAM_FILE) $(UPSTREAM_URL)/$(UPSTREAM_FILE)
+	-rm -rf chntpw-$(UPSTREAM_VER) $(UNPACK_DIR)
+	unzip $(UPSTREAM_FILE)
+	mv chntpw-$(UPSTREAM_VER) $(UNPACK_DIR)
+	# Some binary files are statically linked with OpenSSL, therefore not distributable
+	# Upstream has been notified, no response yet
+	rm -f $(UNPACK_DIR)/*.static
+	tar zcf $(PACKNAME)_$(DEBIAN_VER).orig.tar.gz $(UNPACK_DIR)
+	rm -rf $(UNPACK_DIR) $(UPSTREAM_FILE)
+
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install configure

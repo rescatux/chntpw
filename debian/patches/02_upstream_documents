@@ -1,0 +1,1153 @@
+Add upstream documentation
+--- /dev/null
++++ b/bootdisk.html
+@@ -0,0 +1,548 @@
++<HTML>
++<HEAD>
++<TITLE>Offline NT pw & reg-editor, bootdisk</TITLE>
++</HEAD>
++<BODY link="#00687F" vlink="#00687F" alink="#00687F" bgcolor="#C0C0C0">
++<H2>Offline NT Password & Registry Editor, Bootdisk / CD</H2>
++<hr>
++<p>
++I've put together a single floppy or CD which contains
++things needed to edit the passwords on most systems.
++<br>
++<p>
++The bootdisk should support most of the more usual disk controllers.
++You most likely have to select "d" to auto-load the drivers, it should
++then detect PCI based hardware. For ISA hardware, you have to load manually.
++Both PS/2 and USB keyboard supported.
++<p>
++Tested on: NT 3.51, NT 4 (all versions and SPs), Windows 2000 (all
++versions & SPs), Windows XP (all versions, also SP2),
++Windows Server 2003 (all SPs), Vindows Vista 32 and 64 bit.
++<p>
++<STRONG>DANGER WILL ROBINSON!<br>
++If used on users that have EFS encrypted files, and the system is XP
++or Vista, all encrypted files for that user will be UNREADABLE!
++and cannot be recovered unless you remember the old
++password again</strong><small> If you don't know if you have encrypted files
++or not, you most likely don't have them. (except maybe on corporate systems)
++</small>
++<p>
++<b>Please see the <A HREF="faq.html">Frequently Asked Questions</A>
++and the version history below before emailing questions to me. Thanks!</b>
++<p>
++Also take a look at <A HREF="http://www.cgsecurity.org/" TARGET="_top">Grenier's DOS port</A>
++<p>
++<A HREF="http://www.jms1.net/nt-unlock.html" TARGET="_top">
++How to fix it</a> if you lost your admin password for your
++ActiveDirectory. Thanks to John Simpson.
++<p>
++Other ways to recover lost password etc at
++<a href="http://www.petri.co.il/forgot_administrator_password.htm" target="_top">MCSE World</a>
++<p>
++<hr>
++<H2>How to use?</H2>
++<small>Yes, long text. Please read it all and the <A
++HREF="faq.html">FAQ</A> before mailing me questions</small>
++<p>
++If you have the CD, all drivers are included. If you use the floppy,
++and you need the SCSI-drivers set, either prepare a floppy with
++the scsi-drivers .zip file unzipped (in \scsi), or put a selection
++of the drivers you need in the \scsi folder on the main floppy,
++there should be enough space for maybe a couple of drivers. In the latter
++case you don't need to carry around and swap floppies.
++<p>
++<H3>Overview</H3>
++<OL>
++  <LI>Disk select, tell which disk contains the Windows system.
++      Optionally you will have to load drivers.
++  <LI>PATH select, where on the disk is the system?
++  <LI>File select, which parts of registry to load, based on what you
++  want to do.
++  <LI>Password reset or other registry edit.
++  <LI>Write back to disk (you will be asked)
++</OL>
++<B>DON'T PANIC!! - Most questions can usually be answered with the
++default answer which is given in [brackets]. Just press enter/return
++to accept the default answer.</b>
++<p>
++
++<H3>1. DISK SELECT</H3>
++Which disk contains your Windows system?
++<p>
++<pre>
++=========================================================
++. Step ONE: Select disk where the Windows installation is
++=========================================================
++Disks:
++Disk /dev/sda: 2147 MB, 2147483648 bytes
++NT partitions found:
++ 1 :   /dev/sda1    2043MB  Boot
++
++Please select partition by number or
++a = show all partitions, d = automatically load new disk drivers
++m = manually load new disk drivers
++l = relist NTFS/FAT partitions, q = quit
++Select: [1] 
++</pre>
++<UL>
++<li>For most machines only one disk and parition is listed, if so,
++    just go with selection 1 (default)
++<li>Otherwise select partition
++<li>Note: When booting from USB drive, the USB drive itself may often
++show up as number 1 instead of the machines buildt in drives.
++<li>If no disks or not all disks are shown, you may need to load disk
++drivers, for SCSI-controllers (or some IDE-raid controllers). Select
++<b>d</b> to go to the driver select menu for auto-probe (based what's
++found on the PCI bus)
++<li>If auto-probe won't work, you may have to load something manually,
++select <b>m</b> to do that (like the old system)
++</Ul>
++
++<H3>2. HOW TO MANUALLY LOAD DRIVERS</H3>
++Try auto-probe (d) first, only do this if you have to manually
++try to load some or all drivers.
++<pre>
++Select: [1] m
++==== DISK DRIVER / SCSI DRIVER select ====
++You may now insert or swap to the SCSI-drivers floppy
++Press enter when done: 
++Found 1 floppy drives
++Found only one floppy, using it..
++Selected floppy #0
++Mounting it..
++Floppy selection done..
++SCSI-drivers found on floppy:
++
++1 BusLogic.o.gz
++2 aic7xxx.o.gz
++3 sym53c8xx.o.gz
++[ ... ]
++
++SCSI driver selection:
++  a - autoprobe for the driver (try all)
++  s - swap driver floppy
++  q - do not load more drivers
++  or enter the number of the desired driver
++
++SCSI driver select: [q] 
++</pre>
++<UL>
++<li>Select <b>a</b> for auto-probe, it will try to load all drivers,
++and stop when one loads properly. Some drivers may need more driver
++modules, so you may have to redo the auto-probe several times.
++<li>Or if you know what you want, just enter it's number or name.
++</ul>
++
++<pre>
++SCSI driver select: [q] a
++[ BusLogic.o.gz ]
++Using /tmp/scsi/BusLogic.o
++PCI: Found IRQ 11 for device 00:10.0
++
++[.... lots of driver / card info ...]
++
++scsi0: *** BusLogic BT-958 Initialized Successfully ***
++scsi0 : BusLogic BT-958
++  Vendor: FooInc   Model: MegaDiskFoo  Rev: 1.0 
++  Type:   Direct-Access                      ANSI SCSI revision: 02
++
++[ ... ]
++
++Attached scsi disk sda at scsi0, channel 0, id 0, lun 0
++SCSI device sda: 8388608 512-byte hdwr sectors (4295 MB)
++Partition check:
++ /dev/scsi/host0/bus0/target0/lun0: p1
++Driver BusLogic.o.gz loaded and initialized.
++
++</pre>
++<ul>
++<li>You may then quit the selection with <b>q</b> or try for more drivers.
++<li>When you quit, you will get back to the disk select (see above)
++and hopefully see more disks.
++</ul>
++<p>
++
++<H3>3. PATH AND FILE SELECT</H3>
++Where's the Windows system located?
++<p>
++On the selected partition/disk, the main files for windows can
++theoretically be anywhere. And we must find the registry files
++to be able to edit them. There are however some usual places:
++<ul>
++<li>winnt35/system32/config - Windows NT 3.51
++<li>winnt/system32/config - Windows NT 4 and Windows 2000
++<li>windows/system32/config - Windows XP/2003 and often Windows 2000
++upgraded from Windows 98 or earlier.
++</ul>
++These usual paths will be checked, and if found, they will
++be suggested as the default.
++<p>
++<pre>
++Selected 1
++Mounting on /dev/ide/host0/bus0/target0/lun0/part1
++NTFS volume version 3.1.
++Filesystem is: NTFS
++
++=========================================================
++. Step TWO: Select PATH and registry files
++=========================================================
++What is the path to the registry directory? (relative to windows disk)
++[windows/system32/config] : 
++-r--------    1 0        0          262144 Jan 12 18:01 SAM
++-r--------    1 0        0          262144 Jan 12 18:01 SECURITY
++-r--------    1 0        0          262144 Jan 12 18:01 default
++-r--------    1 0        0         8912896 Jan 12 18:01 software
++-r--------    1 0        0         2359296 Jan 12 18:01 system
++dr-x------    1 0        0            4096 Sep  8 11:37 systemprofile
++-r--------    1 0        0          262144 Sep  8 11:53 userdiff
++
++Select which part of registry to load, use predefined choices
++or list the files with space as delimiter
++1 - Password reset [sam system security]
++2 - RecoveryConsole parameters [software]
++q - quit - return to previous
++[1] : 
++</pre>
++<ul>
++<li>If the directory is correct, something like the above will be
++listed (it may vary a bit..)
++<li>You may then choose some canned answers based on what you want to
++do.
++<li>Password reset is the default, and most used.
++<li>Option 2, RecoveryConsole is for setting 2 parameters that the
++Windows 2000 and newer RecoveryConsole (boot from CD, select Recovery
++and console mode) uses. One of the parameters allows RecoveryConsole
++to be run without it prompting for the admin password. If you do not
++know what RecoveryConsole is, don't bother. Or go search the net..
++<li>Or if you want to do manual edit of registry, select your hives to
++load. Enter all names on one line with space between.
++</ul>
++<p>
++We select 1 to edit passwords..
++<p>
++<H3>4. PASSWORD RESET</H3>
++Everything is set and ready, let's roll!
++<p>
++
++<pre>
++=========================================================
++. Step THREE: Password or registry edit
++=========================================================
++chntpw version 0.99.2 040105, (c) Petter N Hagen
++
++[.. some file info here ..]
++
++* SAM policy limits:
++Failed logins before lockout is: 0
++Minimum password length        : 0
++Password history count         : 0
++
++&lt;&gt;========&lt;&gt; chntpw Main Interactive Menu &lt;&gt;========&lt;&gt;
++
++Loaded hives: &lt;sam&gt; &lt;system&gt; &lt;security&gt;
++
++  1 - Edit user data and passwords
++  2 - Syskey status & change
++  3 - RecoveryConsole settings
++      - - -
++  9 - Registry editor, now with full write support!
++  q - Quit (you will be asked if there is something to save)
++
++
++What to do? [1] -&gt; 1
++
++===== chntpw Edit User Info & Passwords ====
++
++RID: 01f4, Username: &lt;Administrator&gt;
++RID: 01f5, Username: &lt;Guest&gt;, *disabled or locked*
++RID: 03e8, Username: &lt;HelpAssistant&gt;, *disabled or locked*
++RID: 03eb, Username: &lt;pnh&gt;, *disabled or locked*
++RID: 03ea, Username: &lt;SUPPORT_388945a0&gt;, *disabled or locked*
++
++Select: ! - quit, . - list users, 0x&lt;RID&gt; - User with RID (hex)
++or simply enter the username to change: [Administrator] 
++</pre>
++<p>
++Here you can enter the username you want to reset the password for.
++NOTE: It is case-sensitive, write it exact as listed (without the &lt;
++and &gt; of course)
++<p>
++Or if the name uses some characters that cannot be displayed, enter
++it's ID number (RID), like this: 0x1f4 would select administrator.
++<p>
++We select the default, which is administrator.
++<p>
++<pre>
++
++RID     : 0500 [01f4]
++Username: Administrator
++fullname: 
++comment : Built-in account for administering the computer/domain
++homedir : 
++
++Account bits: 0x0210 =
++[ ] Disabled        | [ ] Homedir req.    | [ ] Passwd not req. | 
++[ ] Temp. duplicate | [X] Normal account  | [ ] NMS account     | 
++[ ] Domain trust ac | [ ] Wks trust act.  | [ ] Srv trust act   | 
++[X] Pwd don't expir | [ ] Auto lockout    | [ ] (unknown 0x08)  | 
++[ ] (unknown 0x10)  | [ ] (unknown 0x20)  | [ ] (unknown 0x40)  | 
++
++Failed login count: 0, while max tries is: 0
++Total  login count: 3
++
++* = blank the password (This may work better than setting a new password!)
++Enter nothing to leave it unchanged
++Please enter new password: *
++</pre>
++<p>
++Some information is displayed. Also, if the account is locked, you
++will be asked if you wish to unlock it (not shown here)
++<p>
++<b>We go for the blank password option (*) WHICH IS HIGLY RECOMMENDED
++over setting a new one.</b>
++<p>
++<pre>
++Please enter new password: *
++Blanking password!
++
++Do you really wish to change it? (y/n) [n] y
++Changed!
++
++
++Select: ! - quit, . - list users, 0x<RID> - User with RID (hex)
++or simply enter the username to change: [Administrator] !
++</pre>
++<p>
++! brings us back to the main menu here.
++<p>
++<pre>
++
++<>========<> chntpw Main Interactive Menu <>========<>
++
++Loaded hives: <sam> <system> <security>
++
++  1 - Edit user data and passwords
++  2 - Syskey status & change
++  3 - RecoveryConsole settings
++      - - -
++  9 - Registry editor, now with full write support!
++  q - Quit (you will be asked if there is something to save)
++
++
++What to do? [1] -> q
++</pre>
++<p>
++<H3>5. WRITING OUT THE CHANGES</H3>
++Everything has been done, time to commit the changes.
++<p>
++<pre>
++
++Hives that have changed:
++ #  Name
++ 0  <sam> - OK
++
++=========================================================
++. Step FOUR: Writing back changes
++=========================================================
++About to write file(s) back! Do it? [n] : y
++</pre>
++<p>
++<b>THIS IS YOUR LAST CHANCE! If you answer y here there will be a
++write to disk!</b>
++<p>
++<pre>
++Writing  sam
++
++***** EDIT COMPLETE *****
++
++You can try again if it somehow failed, or you selected wrong
++New run? [n] : n
++
++</pre>
++<p>
++That was all.
++<p>
++Please answer n here and then reboot, CTRL-ALT-DEL. Remember to remove
++the floppy or CD.
++<p>
++<p>
++
++<H2>What can go wrong?</H2>
++Lots of things can go wrong, but most faults won't damage your system.
++<P>
++The most critical moment is when writing back the registry files to
++NTFS. 
++<p>
++The most common problem is that the computer was not cleanly shut
++down, and my disk won't write correctly back. (it says: read only
++filesystem). If so, boot into Windows Safe Mode (F8 before windows
++logo appears) and shut down from the login window.
++<p>
++Also, see the <A HREF="faq.html">FAQ</A> for help with other common problems.
++<p>
++For linux-knowledged people, you may do things manually if the scripts fail,
++you have shells on tty1-tty4 (ALT F1 - ALT F4).
++<hr>
++<p>
++<H2>Bootdisk history</H2>
++<p>
++<strong>2007-04-09</strong>
++<ul>
++<li>Now with Vista support!
++<li>Newer drivers, better probe/loader. Should be able to auto-load
++all relevant drivers for PCI based disk hardware.
++<li>Better manual selection of drivers (if you need to load ISA
++drivers for example)
++<li>CD only release at this time. If anyone need me to continue floppy
++releases, please mail me.
++<li>USB drive can be made out of the files on the CD, see readme.txt
++on the CD.
++</ul>
++<p>
++<strong>2005-03-03</strong>
++<ul>
++<li>New CD release (sorry, when yet again rewiring the driver stuff, I did
++    not have time to make floppy stuff work)
++<li>Contains disk driver updates (SATA maybe more working now)?
++<li>New driver auto-probe and load. Better now?
++<li>NTFS updates, writes should be more safe, I hope, working more often.
++<li>No changes to the password routines themselves.
++</ul>
++<p>
++<strong>2005-03-03</strong>
++<ul>
++<li>Driver update only, with a few fixes to the autoprobe, too.
++<li>Some popular drivers like aacraid, megaraid and some SATA-drivers
++    were problematic or missing, now hopefully here.
++<li>Note that most SATA-drivers also need the libata.ko.gz file,
++autprobe loads it if needed.
++<li>The driver archive are too big to include all drivers on a floppy
++    so remove some you're sure you don't need. Remember to always
++    keep pcitable.gz and moddep.gz if you want autoprobe to work.
++<li>The CD of course includes all drivers.
++<li>The manual try-all-drivers load is buggy, and won't try to load all
++drivers, it will stop after each that has not been tried before. But
++specifying a single driver directly still works.
++<li>No changes to password edit routines
++</ul>
++<p>
++(earlier history removed)<br>
++<STRONG>9705xx</STRONG>
++<UL>
++<LI>First public release.
++</UL>
++<HR>
++<H2>Download</H2>
++<p>
++<small>Note: Some links may be offsite.</small>
++<p>
++<UL>
++<LI><A HREF="cd070409.zip">cd070409.zip</A> (~3MB) - Bootable CD image.
++<small>(md5sum: ffb92d9ffafaa6ed06e9b98fc14f707d )</small>
++<p>
++Bootable USB drive may be made from the files on the CD. See readme.txt on the CD.
++<p>
++<small>Last floppy release (it is old). WARNING: WILL CORRUPT WINDOWS VISTA!
++<LI><A HREF="bd050303.zip">bd050303.zip</A> (~1.1MB) - Bootdisk image,
++date 050303 <small>(md5sum: 4c85bc15286e69f9fd347e07711636eb)</small>
++<LI><A HREF="sc050303.zip">sc050303.zip</A> (~1.4MB) - SCSI-drivers
++(050303) (only use newest drivers with newest bootdisk, this one works
++with bd050303) <small>(md5sum: 745a1889b6580bc8f1bfb565e73666d3)</small>
++</UL>
++</small>
++<p>
++Previous versions may sometimes be found <A HREF="http://ntpass.blaa.net/">here</a> (also my site)
++<p>
++<p>
++<B>NOTE THAT THE BOOTDISK CONTAINS CRYPTHOGRAPHIC CODE, and that it may be
++ILLEGAL to RE-EXPORT it from your country.</B>
++<p>
++
++<H3>How to make the CD</H3>
++<p>
++Unzipped, there should be an ISO image file (cd??????.iso). This can
++be burned to CD using whatever burner program you like, most support
++writing ISO-images. Often double-clikcing on it in explorer will pop
++up the program offering to write the image to CD. Once written the CD
++should only contain some files like "initrd.gz", "vmlinuz" and some
++others. If it contains the image file "cd??????.iso" you didn't burn
++the image but instead added the file to a CD. I cannot help with this,
++please consult you CD-software manual or friends.
++<p>
++The CD will boot with most BIOSes, see your manual on how to set it
++to boot from CD. Some will auto-boot when a CD is in the drive,
++some others will show a boot-menu when you press ESC or F10/F12 when
++it probes the disks, some may need to have the boot order adjusted
++in setup.
++<p>
++
++<H3>How to make the floppy</H3>
++<p>
++The unzipped image (bdxxxxxx.bin) is a block-to-block representation
++of the actual floppy, and the file cannot simply be copied to
++the floppy. Special tools must be used to write it block by block.
++<p>
++<ul>
++<li>Unzip the bd zip file to a folder of your choice.
++<li>There should be 3 files: bdxxxxxx.bin (the floppy image) and
++    rawrite2.exe (the image writing program), and <b>install.bat</b> 
++    which uses rawrite2 to write the .bin file to floppy.
++<li>Insert a floppy in drive A: <b>NOTE: It will lose all previous data!</b>
++<li>Run (doubleclick) <b>install.bat</b> and follow the on-screen
++instructions.
++<li>Thanks to Christopher Geoghegan for the install.bat file (some of
++it ripped from memtest86 however)
++</ul>
++<p>Or from unix:<p>
++<CODE>dd if=bd??????.bin of=/dev/fd0 bs=18k</CODE>
++<p>
++<H3>How to make and use the drivers floppy</H3>
++<p>
++<b>NOTE: Not all files will fit on a floppy, so leave out what you
++think you do not need!</b>
++<ul>
++<li>Format (or delete all contents) on a floppy
++<li>Unzip the drivers you think you may need to it
++<li>Files with names ending in <code>.ko.gz</code> should end up in a
++directory called <code>scsi</code>
++<li>Be sure to also include the files <code>moddep.gz</code> and
++<code>pcitable.gz</code>, they are the dependency list, and pci
++mappings.
++<li>To use, at the disk select menu, select 'd' to auto-load, and you
++will be asked to swap to the drivers floppy when needed.
++</ul>
++<p>
++<HR>
++<p>
++<H1>Bootdisk credits and license</H1>
++<p>
++Most of the stuff on the bootdisk is either GPL, BSD or similar
++license, you can basically do whatever you want with all of it,
++the sourcecode and licenses can be found at their sites, I did not change/patch
++anything.
++<p>
++The "chntpw" program (password changer, registry editor) is licensed
++under GNU GPL v2. <A HREF="GPL.txt">COPYING.txt</A>
++<p>
++Stuff I used, big thanks:
++<UL>
++<li><a href="http://kernel.org" target="_top">Linux kernel</a>
++<li><a href="http://linux-ntfs.sourceforge.net/index.html"
++target="_top">NTFS for linux project</a>
++<li><a href="http://www.busybox.net" target="_top">BusyBox</a> - Lots of commands
++in one binary :)
++<li><a href="http://www.uclibc.org" target="_top">uClibc</a> - A
++reduced size / embedded libc.
++<li>Some bootdisk ideas and layout from <a
++href="http://www.zelow.no/floppyfw/" target="_top">floppyfw</a>
++thanks to ThomasEZ for that (and his great firewall..)
++</UL>
++<p>
++<HR>
++<p>
++<img src="/cgi-bin/wc?u=pnordahl_2;w=9">
++<p>
++<a href="editor.html"><img border="0" src="images/back.gif" width="98" height="20"></a><hr>
++<ADDRESS>070410, pnordahl@eunet.no</ADDRESS>
++</BODY>
++</HTML>
+--- /dev/null
++++ b/faq.gif.uu
+@@ -0,0 +1,125 @@
++begin 644 faq.gif
++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
++3ON_\WN\Y=N\`C^\.S%WL$`0`.P``
++`
++end
+--- /dev/null
++++ b/faq.html
+@@ -0,0 +1,343 @@
++<HTML>
++<HEAD>
++<TITLE>Offline NT pw & reg-editor, FAQ</TITLE>
++</HEAD>
++<BODY link="#00687F" vlink="#00687F" alink="#00687F" bgcolor="#C0C0C0">
++<H2 align="center"><img border="0" src="images/faq.gif" width="460" height="65"></H2>
++<hr>
++
++Last update: 080526
++
++<p>
++<h3>
++The changes does not take effect.<br>
++I get some errors like "read-only filesystem" and such.
++</h3>
++<ul>
++<li>The current version does not like to write to the NTFS filesystem if
++windows was not shut down cleanly.
++<li>Shut down windows from the login page, or from the start menu.
++<li>If there is no way to shutdown from the login-page, try this:
++<ol>
++  <li>Boot windows into Safe Mode (press a lot on F8 before the
++  windows logo screen appears)
++  <li>The login screen in safe mode should usually have a shutdown
++  option, so shut it down!
++  <li>You may have to do this TWICE! quite often..
++</ol>
++</ul>
++<p>
++<h3>
++Why can't I access my encrypted (EFS) files after resetting the password?
++</h3>
++<ul>
++<li>Because in XP and possibly later service packs in win2k the
++password itself is used to encrypt the keys needed for EFS.
++<li>Sorry, there is no way to recover the files once the
++password has been reset.
++</ul>
++<p>
++<h3>
++The .bin-file inside the .zip won't fit on a floppy.
++</h3>
++<ul>
++<li>You didn't read the bottom of the <A HREF="bootdisk.html">bootdisk
++download page</A>
++<li>Click on the <b>install.bat</b> after extracting the .zip file,
++and follow the on screen prompts.
++</ul>
++
++<p>
++
++<h3>
++The keyboard does not work! I can't answer the questions!!
++</h3>
++<ul>
++<li>If you have a USB keyboard either your USB controller or your
++keyboard is not supported with the rather generic drivers I use.
++Nothing I can do at the moment, sorry! Try a PS/2 keyboard if possible.
++<li>If the keyboard is PS/2 and won't work, I do not have a
++solution. Sorry.
++</ul>
++<p>
++
++<h3>
++When loading the floppy it stops with "boot failed."
++</h3>
++<ul>
++<li>Bad floppy. Or bad bootloader (some versions are known to give up
++easy)
++<li>Use another floppy or a new version of the ldlinux.sys file (go
++allthewebbing for it for instance. grab one from a linux distros
++bootdisks. I did.)
++<li>Or get the CD image from the <A HREF="bootdisk.html">download</A> page.
++</ul>
++
++<p>
++<h3>
++  I have the CD in my CD drive, but it starts on the haddrive.
++</h3>
++<ul>
++<li>Check your BIOS manual on how to boot from CD, or if the CD-ROM is
++on a SCSI-card, check the cards manual.
++<li>For those of you without manuals: Try hitting ESC or F10 or F12
++for bootmenu right after the RAM-count.
++<li>Or enter BIOS setup and change the boot order. Either you can
++figure that one out from the menus, or you really need the manual.
++<li>I don't remember when BIOS-folks started implementing the CD boot
++(El Torito) standard, but it was around 1995? Older computers won't CD boot.
++<li>But BIOS-programmers never actually READ the bloody standard, so
++you may have a buggy one that only boots some CDs.
++<li>If it boots (first banner page), the same problems as for the
++floppy may show, please read on..
++</ul>
++
++<p>
++<h3>
++The floppy stuff crashes with "VFS: Unable to mount root.." and panic etc.
++</h3>
++<ul>
++<li>The are several ways of getting the size of the memory out of the
++BIOS at boot.
++<li>It probably selected the wrong one, and 16MB is a bit too little.
++<li>Strangely, this most often happens on big brand machines, like
++Compaq and DELL.
++<li>At boot, hold down LEFT SHIFT key until "Boot: " prompt appears.
++<li>Then enter:
++  <ul>
++  <li><code>boot mem=128M</code>
++  </ul>
++<li>but substitute with how much memory you have (or a bit less to be safe)
++<li>If this doesn't help, there is probably not support for your
++motherboard, CPU or BIOS.
++</ul>
++
++<p>
++<h3>
++It cannot find any NT disks or paritions.
++</h3>
++<ul>
++<li>Some controllers require more than one driver. Usually the
++auto-load should take care of dependencies, but it does not hurt to
++try auto-load (d) again.
++<li>It's either caused by unsupported controller or filesystem driver problems.
++<li>See next questions..
++<li>Please don't ask about inclusion of new drivers. I'm often short
++on time, get lot's of mail, and it's difficult to put in things I
++cannot test.
++<li>If you really insist on asking for new drivers, you must at least
++provide me with correct info on controller card or chip brandname,
++type, model etc, and a link to website(s) with drivers for linux.
++If there also are docs for using it on linux, I need that, too.
++However, as I get a lot of mail, I cannot guarantee an answer or that
++your needed driver will be included.
++<li>There are however several other things to try:
++  <ul>
++  <li>Try to build <A HREF="http://www.cgsecurity.org/" TARGET="_top">Grenier's DOS floppies</A>
++  <li>Move harddisk to another machine as secondary, then try
++  <A HREF="http://www.cgsecurity.org/" TARGET="_top">Grenier's chntpw.exe</A>
++  <li>Install new NT/2k/XP in another dir than \winnt etc, then login
++  with new install to access the old ones sam file. Either rename it
++  (will leave admin with blank pass) or use chntpw.exe on it.
++  </ul>
++  <li>You could boot a live linux CD
++  (like <A href="http://www.ubuntu.com/" TARGET="_top">Ubuntu</A> or others), it
++  will allow access to the windows disk. Then run the "chntpw.static"
++  program included in the source zip file on the source <a href="editor.html">download page</a>
++<li>Or why not look at
++<a href="http://www.petri.co.il/forgot_administrator_password.htm"
++target="_top">The password recovery page at MCSE World</a>
++</ul>
++
++<p>
++<h3>
++How to load a 3rd party driver
++</h3>
++<ul>
++<li>There is a menu selection for it. Put file(s) drivers*.zip
++  on a floppy or on a USB stick (may be a different one from the one
++  you boot from). The zips should contain *.ko files. The files will be automatically unzipped and ready
++  for auto-load or manual menu selection.
++<li>I do not know how easy or difficult it will be to actually get the
++  drivers to load into my kernel. There may be versions incompatibilities.
++</ul>
++<p>
++
++<h3>
++It hangs when mounting the windows disk
++</h3>
++<ul>
++<li>Hangs when it says something like "NTFS volume version 3.xx"
++<li>If there is disk activity, just wait. Took more than 10 minutes in
++  one of my tests once.
++<li>If there is no disc activity, what a few minutes, then reset and
++  try again.
++<li>If it still hangs, try to boot windows into safe mode first, then
++  shut down etc. See other faq entries about that.
++</ul>
++<p>
++
++<h3>
++It seems to change the password, but NT won't agree.
++</h3>
++<ul>
++<li>The NTFS code wasn't that great after all (probably didn't write
++things properly)
++<li>My code wasn't that great after all. (it didn't change or changed
++in the wrong place. The V struct is still marked "here be dragons..")
++<li>Try blanking the password instead (menu selection 1), this
++may straighten things out. In fact, reports indicate: BLANKING RECOMMENDED!
++<li>If it still won't work, see the previous solution.
++<li>Blanking will probably be the only option in newer releases.
++</ul>
++<p>
++
++<p>
++<h3>
++I'm told that the account is locked, even if I know it is not.
++</h3>
++<ul>
++<li>Ok, then the code to identify lockout is not good enough. Sorry
++for that.
++<li>Happens sometimes when there are failed logins on a user, even if
++it is not in fact locked out.
++<li>Just ignore it, you may still clear the password if you wish.
++</ul>
++<p>
++
++<p>
++<h3>
++I'm not told that the account is locked out, even Windows says it
++is. How can I reset it?
++</h3>
++<ul>
++<li>Oops, probably more to the lockout stuff than I know about.
++<li>You can try resetting it (selection 4 from the user menu), but it
++may not help.
++<li>May have something to do with Security / Group policies, which
++editing of is not supported yet.
++<li>Unless you'd like to play with the registry editor yourself and
++figure it out. I cannot give lessons in registry edit.
++</ul>
++
++<p>
++<h3>
++The user promotion (putting user into admin group) did not work: I
++cannot log in!
++</h3>
++<ul>
++<li>Some users (like Guest often) are prevented from login by
++"Security policies". Does it say something like that when trying?
++<li>Sorry, but my program cannot change policy settings. (yet?)
++<li>It does not even know how to check them.
++<li>Sorry, nothing to do..
++</ul>
++
++<p>
++<h3>
++The user promotion (putting user into admin group) worked, but I
++cannot put user back into other groups in windows!
++</h3>
++<ul>
++<li>This is known to happen sometimes.
++<li>Try the local user part of "computer management" in
++"administrative tools", it is more detailed than the stupid control
++panel applet.
++<li>But that may not work, either.
++<li>Sorry, have no other known workarond. I told you it was experimental!
++</ul>
++
++<p>
++<p>
++<h3>
++I tried it on Win2k/2003/2008 PDC (Active Directory), and it didn't change the password.
++</h3>
++<ul>
++<li>ActiveDirectory (AD) is a completely different database.
++<li>There is no support for directly changing passwords in AD.
++<li>To clear things up: The Active Directory SERVER itself is not
++directly supported, but workstations (w2kprof) and servers (w2k server) that is
++just MEMBERS of the domain can have their LOCAL passwords changed by
++the utility.
++<li>But..
++<li>John Simpson has made <a href="http://www.jms1.net/nt-unlock.html"
++target="_top">
++instructions</a> on how to reset that pesky lost administrator password in AD.
++<li>Many thanks goes to John for this!
++<li>And I may as well in a future relase make a frontend for the
++screensaver trick he uses, so it will be even easier.
++</ul>
++<p>
++<p>
++<h3>
++What is the 'Can't access tty...' error message when I quit the
++floppy/cd procedure?
++</h3>
++<ul>
++<li>It's from the shell, and has nothing whatsoever to do with the
++password edit.
++<li>My scripts don't allocate the terminal correctly.
++<li>Only thing it means is that ctrl-c to break etc won't work on
++console 1. Should work on console 2-4 (ALT-F2 and so on)
++<li>Please don't ask about this in mail AGAIN!
++</ul>
++<p>
++<h3>
++My language uses characters in the usernames that are not readable
++with the floppy, and i cannot enter/search for them, thus not edit.
++</h3>
++<ul>
++<li>There is no support for the full unicode character set. Perhaps
++never will.
++<li>Select user with the RID (user ID) instead.
++<li>At the username prompt, enter the RID in hex, just as it is listed
++in the user listing. 0xfa0 for instance.
++</ul>
++<p>
++
++<p>
++<h3>
++What about support? and I just paid $$ for it on eBay!
++</h3>
++<ul>
++<li>Yes, some people sell it on eBay.
++<li>Most of them didn't bother to ask me, but I haven't cared too much
++about it, at least not yet.
++<li>If the price is reasonably low (for media, shipping etc), they offer some kind of help and
++support if customers need it, that's good, and no problem for me.
++<li>Please do not blaim me if eBay sellers can't deliver or it doesn't
++work, or you feel ripped off. Leave feedback on eBay instead.
++<li><b>I DO NOT ENDORSE ANY SPECIFIC SELLER ON eBAY!</b>
++<li>I give my tool away for free here, because I do not have the time
++for real support.
++<li>Usually I go through my mail 1 or 2 times a week, and I usually
++end up replying about 40-50% of it.
++<li>What I answer depends on my mood that day, what the problems
++are, and how they are presented.
++<li>Mails with questions for which an answer can be found here in the
++FAQ or on the other webpages will not be answered.
++<li>Questions for drivers will almost never be answered. They take too
++much time to figure out. Sorry.
++<li>And.. I understand English, Norwegian, Swedish and Danish.
++<li>My answers are either in English or Norwegian. (as appropriate :-)
++<li><b>Thank you all for a lot of positive feedback or small tips for
++improvement, I appreciate it :-) </b> even if I often don't reply to you. :-(
++</ul>
++
++<p>
++<h3>
++Can I donate money?
++</h3>
++<ul>
++<li>Not a the moment, I have closed the donations. There are several
++reasons I will not talk about.
++<li>But a big thank you to all that have donated, especially to some I
++guess I have missed a personal reply to!
++</ul>
++<p>
++<hr>
++<p>
++<a href="main.html"><img border="0" src="images/back.gif" width="98" height="20"></a><hr>
++<ADDRESS>091201, pnh@pogostick.net</ADDRESS>
++</BODY>
++</HTML>
+--- /dev/null
++++ b/syskey.txt
+@@ -0,0 +1,124 @@
++The Offline NT Password Editor
++
++(c) 1997-2002 Petter Nordahl-Hagen
++
++Update: 08 dec 2002
++
++What happens when syskey is installed, and how to get rid of it
++---------------------------------------------------------------
++
++Background:
++-----------
++
++Syskey was added to NT with Service Pack 3 as a way to prevent easy
++access to the actual password hashes in the SAM (Security Accounts Manager)
++The original methods of making and storing the hashes makes it
++rather easy to bruteforce or dictionary-attack it to find the plaintext
++passwords. (mostly caused by a somewhat flawed implementation & use
++of the cryptoalgorithms involved, but that's discussed elsewhere)
++Enabling syskey is optional, the administrator must run syskey.exe and
++answer some dialog-boxes to turn it on. On Windows 2000 it's not optional
++anymore, it's enabled by default at installation time.
++
++When syskey is active, the hashes are encrypted/obfuscated yet
++another time before being stored in the SAM registry.
++However, they're stored in the old form in memory after boot
++(pwdump2 demonstrates this),
++since the old form is needed for NTLM authentication on the network etc.
++
++The key that obfuscates the hashes, or rather it looks like something
++that decrypts the key, can be stored on floppy, generated from a
++passphrase to be entered at boot, or stored (obfuscated again) in
++the registry.
++
++There's no official supported method to switch off syskey
++once activated, except restoring the registry from a rescuefloppy
++made before activation of syskey.
++
++So.. what's this got to do with my utility?
++-------------------------------------------
++
++My utility doesn't try to crack passwords, it puts new hashes into
++the SAM, thus changing a users password. And it does this offline.
++Syskey was a showstopper for this.
++As far as I can see, there's 2 ways to solve this:
++
++1) Find the key in registry, get user to enter it, or get hold of floppy
++   then use the syskey on the new password too. However, it's not documented
++   and I haven't found any reverse engineering of it anyplace.
++
++2) Try to turn it off. This has one drawback, and one good side:
++   Bad: all passwords must be reset, since the old hashes will be invalid.
++   VeryBAD: SWITHCHING OFF IN WINDOWS 2000 AND XP NOT PERFECT,
++            WILL CAUSE TROUBLE, but you can access the computer
++            afterwards. Domain relationships & syskey may be
++            impossible to change after this, requiring a reinstall
++            (or possibly only an upgrade)
++   Good: There's no need for the key (which may be lost).
++
++3) (NEW 2000-04-01, no, not a joke) Insert old styles password-hashes
++   into the SAM, will be converted to syskey-hashes on next boot.
++   This is how syskey is enabled on NT4, the hashes won't be touched
++   until the first reboot after turning on syskey.
++
++I've found out how to do #2 and #3.
++
++What happens when syskey is turned on, and how to turn it off again:
++--------------------------------------------------------------------
++
++- 1 -
++Serveral new keys are added to HKLM\System\CurrentControlSet\Control\Lsa,
++it seems that most of the keys/values is used for the obfuscation of the key
++they change when syskey is updated.
++However the value named 'SecureBoot' holds the mode of syskey:
++  1 - Key in registry
++  2 - Enter passphrase
++  3 - Key on floppy
++
++But removing this key (or setting it to 0) isn't enough to disable
++syskey. There's more..
++
++- 2 -
++HKLM\SAM\Domains\Account\F is a binary structure usually containing the computer
++SID and some other stuff related to that.
++When syskey is installed it's expanded (about twice the size), with something
++I guess is the key heavily encrypted + some flags and other values.
++One of these other flag/values also contains the same mode as SecureBoot above.
++
++So.. resetting this mode flag and SecureBoot to 0 is all that's needed
++to switch off syskey in NT4 (up to SP6 at time of writing). Changing only one of them
++results in a warning about inconsistencies between the SAM and system settings
++on completed boot, and syskey is re-invoked.
++
++- 3 -
++On Windows 2000 there's yet another place info about syskey is stored:
++
++HKLM\security\Policy\PolSecretEncryptionKey\<default>
++which also is a binary structure, but also there the mode is stored.
++Reset this to 0, and syskey is gone on win2k.
++(if there's a mismatch between the three, it silently resets them
++ to the most likely value on boot)
++
++- 4 -
++Then there's the password hashes.
++The usual (old) hashlength is 16 bytes, but all hashes are expanded to 20 bytes
++with syskey, the first 4 bytes looks like some kind of counter. (maybe
++history-counter?).
++Strangely, they're not updated at once when syskey is turned on,
++update of the hashes happens during next reboot after syskey has been turned on.
++And when the key is later updated, the hashes are also updated?
++NO!! Strangely it SEEMS like the password hashes REMAINS THE SAME!
++(however, the binaries in the 3 keys noted above changes..)
++I'll try to dig more into this. Help wanted :)
++
++When syskey has been switched off, all passwords must be reset.
++My utility will write and adjust hash-lengths of the users (usually
++administrator) that you reset the password for.
++NT itself will fix the rest of the hashes when you set new passwords
++from NT.
++
++And yes, it's possible to re-enable syskey after turning it off.
++(not on win2k, yet!)
++
++So, anybody reverse engineered the whole syskeystuff?
++(yes, I know something's on it's way..)

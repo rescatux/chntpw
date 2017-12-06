@@ -1,0 +1,40 @@
+--- a/ntreg.c
++++ b/ntreg.c
+@@ -2667,21 +2667,23 @@
+ 	      value = (char *)get_val_data(hdesc, nkofs, vex.name, vex.type, TPF_VK_EXACT);
+ 	      len = get_val_len(hdesc, nkofs, vex.name, TPF_VK_EXACT);
+ 
+-	      if (vex.type == REG_BINARY) {
+-		fprintf(file, "\"%s\"=hex:", vex.name);
+-	      } else {
+-		fprintf(file, "\"%s\"=hex(%x):", vex.name, vex.type);
+-	      }
+-	      byte = 0;
+-	      while (byte < len) { /* go byte by byte.. probably slow.. */
+-		fprintf(file, "%02x,", (unsigned char)value[byte]);
+-		byte++;
+-		if (!(byte % 20)) fprintf(file, "\\\r\n  ");
+-	      }
+-	      fprintf(file, "%02x\r\n", (unsigned char)value[byte]);
+-            }
++	      if (value && len >= 0) {
++		if (vex.type == REG_BINARY) {
++		  fprintf(file, "\"%s\"=hex:", vex.name);
++		} else {
++		  fprintf(file, "\"%s\"=hex(%x):", vex.name, vex.type);
++		}
++		byte = 0;
++		while (byte < len) { /* go byte by byte.. probably slow.. */
++		  fprintf(file, "%02x,", (unsigned char)value[byte]);
++		  byte++;
++		  if (!(byte % 20)) fprintf(file, "\\\r\n  ");
++		}
++		fprintf(file, "%02x\r\n", (unsigned char)value[byte]);
+ 
+-            FREE(vex.name);
++		FREE(vex.name);
++	      }
++	    }
+         }
+     }
+ 

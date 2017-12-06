@@ -1,0 +1,60 @@
+This package was debianized by 
+Javier Fernandez-Sanguino Pen~a <jfs@debian.org> on
+Thu, 30 May 2002 00:27:47 +0200.
+
+It was downloaded from http://pogostick.net/~pnh/ntpasswd/
+(previously at http://home.eunet.no/~pnordahl/ntpasswd/)
+
+Author: 
+
+Petter Nordahl-Hagen <pnh@pogostick.net>
+
+Copyright: 
+
+  Copyright 1997-2008 Petter Nordahl-Hagen
+
+License:
+
+The Offline NT Password & Registry Editor
+
+  This package is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License.
+
+  This package is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+The  NT Registry Hive access library (ntreg.{c,h} and sam.h) holds the
+following license:
+
+ This library is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation;
+ version 2.1 of the License.
+
+ This library is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+
+On Debian systems, the complete text of the GNU General
+Public License can be found in `/usr/share/common-licenses/GPL-2'.  and the
+complete text of the GNU Lesser General Public License can be found in
+`/usr/share/common-licenses/LGPL-2.1'.
+
+--------------------------------------------------------------------------------
+
+This software uses some routines & links with routines
+by the following people/organizations:
+
+ * As of 2001, it now uses OpenSSL for MD4 & DES.
+ * Thanks to Denis Ducamp for patches to make it work with OpenSSL.
+ * 
+ * Part of some routines, information and ideas taken from
+ * pwdump by Jeremy Allison.
+ *
+ * Some stuff (like proto.h) from NTCrack by Jonathan Wilkins.
+
+--------------------------------------------------------------------------------

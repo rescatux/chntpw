@@ -1,0 +1,213 @@
+chntpw (1.0-1) unstable; urgency=low
+
+  * Update to latest upstream release, published in 2014-02-01
+  * debian/rules: Provide also the other binaries built in the sources:
+    reged (Simple Registry Edit Utility for Windows registry hives),
+    sampasswd (SAM database, add or remove user in a group),
+    samusrgrp (SAM database, add or remove user in a group)
+  * debian/samusrgrp.8 debian/reged.8 debian/sampasswd.8: Write manpages
+    for all of the other programs built and included now in the package
+  * debian/chntpw.8: Update the manpage contents based on the program's
+     current -h output.
+  * debian/patches/01_port_to_gcrypt.patch: 
+        Update patch since in this release upstream author uses a new define
+        (DOCRYPTO) that enables cryptographic code.  This code, that enabled
+        users to change the password, is not enabled by default anymore since
+        it does not work with Windows XP (and later) systems.
+  * debian/patches/11_improve_documentation:
+        Add a new patch to improve the English (by a non-native speaker
+        oh! the irony!) of the HISTORY.txt and MANUAL.txt files, fixing
+        grammar and spelling mistakes, as well as some typos.
+  * debian/changelog: Fix typo and add reference to Ubuntu closed bug
+  * debian/control:
+      - Require debhelp version 5, as per debian/compat
+  * debian/rules: 
+      - Update definitions to adapt to this version and upstream's numbering
+        (140201)
+  * Lintian fixes:
+      - Remove statically compiled files from sources (Fixes: source-is-missing)
+      - debian/copyright: point to the versioned license files, not the
+        symlinks since the source does not allow the use of later GPL
+        versions (Fixes: copyright-refers-to-versionless-license-file)
+      - debian/chntpw.8: Fix manpage error (Fixes:
+        manpage-has-errors-from-man)
+      - debian/rules: 
+            + Added missing targets build-indep and build-arch (fixes:
+            debian-rules-missing-recommended-target)
+            + Include buildflags.mk provided by dpkg-dev (fixes:
+            hardening-no-relro)
+      - debian/control: 
+          + Added  ${misc:Depends} (fixes: debhelper-but-no-misc-depends)
+          + Use UTF-8 version of maintainer's second surname (i.e. 'ñ' instead
+          of 'n~') this prevents tools from thinking the uploads are a NMU
+          when they are not (fixes: changelog-should-mention-nmu)
+          + Update Standards Version to 3.9.5, no changes needed (fixes:
+          ancient-standards-version)
+      - debian/docs: Remove HISTORY.txt, it is included as a changelog already
+        (fixes: duplicate-changelog-files)
+
+ -- Javier Fernández-Sanguino Peña <jfs@debian.org>  Wed, 06 Aug 2014 22:23:44 +0200
+
+chntpw (0.99.6.110511-1) unstable; urgency=medium
+
+  * Update to latest upstream release, published in 2011-05-09 (Closes: #615965) (LP: #637623)
+  * Change Build-Dep to use 'libgcrypt11-dev | libgcrypt-dev' instead of
+    'libgcrypt11-dev | libssl-dev' (Closes: #639350)
+  * debian/patches:
+    - Refreshed patches
+    - Remove patches that do not apply anymore, some of these
+      were incorporated upstream.
+    - Fix 09_improve_robustness, the length of the input call was
+      not being properly calculated, resulting in chntpwd not clearing
+      the password properly. This was fixed in Fedora's patches see:
+      http://pkgs.fedoraproject.org/cgit/chntpw.git/commit/?id=13bf89e14642a0da681384de5b6360178c3f8d57
+      (Closes: #705292)
+
+ -- Javier Fernández-Sanguino Peña <jfs@debian.org>  Wed, 29 Jan 2014 19:47:17 +0100
+
+chntpw (0.99.6-2) unstable; urgency=low
+
+  * Add patches provided by Fedora to fix regex -x crahses, see 
+      https://bugzilla.redhat.com/show_bug.cgi?id=504580
+      http://cvs.fedoraproject.org/viewvc/devel/chntpw/
+    The patches included are:
+    chntpw-080526-correct-test-for-failing-open-syscall.patch
+    chntpw-080526-detect-failure-to-write-key.patch
+    chntpw-080526-get_abs_path.patch
+    chntpw-080526-keyname-overflow.patch
+    chntpw-080526-no-value.patch
+    chntpw-080526-port-to-gcrypt-debian.patch
+    chntpw-080526-reged-no-deref-null.patch
+    chntpw-080526-robustness.patch
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@debian.org>  Sat, 13 Mar 2010 12:14:05 +0100
+
+chntpw (0.99.6-1) unstable; urgency=low
+
+  * New upstream release (Closes: #503908)
+     - Fixes bug in 64-bit architectures (Closes: #539227) (LP: #293809)
+  * Create debian/README.source to describe the usage of quilt
+  * Update FAQ contents with latest upstream version (updated 080526)
+  * Move the "improve documentation" patch to quilt, it is currently
+    disabled until we get an answer from upstream
+  * Definition of optimisation for the compiler is now done in debian/rules
+    and not in the Makefile
+  * Update homepage location and upstream's email in debian/copyright
+  * Update homepage location in the manpage
+  [ Changes by Philippe Coval <rzr@gna.org> ]package
+  * Merged Tanguy Ortolo's manpage patch that updates
+    the debian/chntpwd.8 manpage with additional information such as the
+    SAM database location (Closes: #569943)
+  * Refresh debian/patches (Closes: #538574)
+  * Add debian/watch
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@debian.org>  Sat, 13 Mar 2010 11:18:14 +0100
+
+chntpw (0.99.5-0+nmu1) unstable; urgency=low
+
+  * Non-maintainer upload with the maintainers permission.
+  * New upstream release
+    - This release is GPLed, move to main
+    - It links to OpenSSL without the exception, port to libgcrypt
+    - It contains a binary statically linked to OpenSSL, remove it
+      in the get-orig-source target to create a clean orig.tar.gz
+    - The combination of these things closes: #419821
+  * Drop faq.html, bootdisk.html and syskey.txt, we don't necessarily
+    have permission from upstream to distribute them.
+  * Move the homepage to the new source field
+  * Bump Standards-Version (no changes needed) to version 3.8.4
+  * Switch to debhelper compatibility level 5
+  * Add ${misc:Depends} to the dependencies
+  * Fix a couple of manual page lintian warnings
+  * Don't make clean when there is no Makefile
+  * Clean up the debian/rules file a bit
+  * Distribute HISTORY.txt as the upstream changelog
+
+ -- Paul Wise <pabs@debian.org>  Mon, 19 May 2008 16:11:01 +0800
+
+chntpw (0.99.4-1) unstable; urgency=low
+
+  * New upstream release (Closes: #419821)
+     - new version is GPLd (chntpwd) and LGPLd (ntreg library), move to main
+  * Add a Homepage to debian/control
+  * Change the maintainer's email address at debian/control
+  * Repackage the sources removing the chntpwd.static program
+  * Update the HTML files (faq, bootdisk, etc)
+  * Added author's email address to the copyright
+  * Cleanup the debian/rules file
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@debian.org>  Sat, 25 Aug 2007 17:19:23 +0200
+
+chntpw (0.99.3-1) unstable; urgency=low
+
+  * New upstream release (Closes: #390025)
+  * Added a space in front of the Homepage in debian/control as requested by
+    the Developer's Reference
+  * Update (from the developer's website) the FAQ and assorted documentation.
+  * Use debhelper compatibility version 4
+  * Update Standards-Version (no changes needed)
+  * Remove non-ASCII chars from manpage to prevent encoding issues.
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Mon, 27 Nov 2006 01:19:02 +0100
+
+chntpw (0.99.2-4) unstable; urgency=low
+
+  * Fixed FTFBFS errors when compiling with gcc-4 (in amd64) with
+    patch from Andreas Jochens (Closes: #297271)
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Thu,  7 Apr 2005 00:24:26 +0200
+
+chntpw (0.99.2-3) unstable; urgency=low
+
+  * Compile using -O2 (Closes: #255140)
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Fri, 27 Aug 2004 18:12:16 +0200
+
+chntpw (0.99.2-2) unstable; urgency=low
+
+  * Actually add the build-depends on sharutils (Closes: #254706) 
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Sun, 27 Jun 2004 12:51:34 +0200
+
+chntpw (0.99.2-1) unstable; urgency=low
+
+  * New upstream release.
+  * Updated html pages and added an 'update' target in debian/rules
+  * Added the Build-Depends dependancies to sharutils spotted by
+    Frederik Schueler (Closes: #254706)
+  * Removed WinReg.txt since it is not credited and no longer available
+    in the sources.
+  * Fixed typo in debian/rules which did not remove faq.gif and made
+    the package unbuildable (on a second round)
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Wed, 16 Jun 2004 20:17:51 +0200
+
+chntpw (0.99.1-030126-2) unstable; urgency=low
+
+  * Added faq.html and bootdisk.html taken from the website.
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Sun, 12 Oct 2003 00:13:01 +0200
+
+chntpw (0.99.1-030126-1) unstable; urgency=low
+
+  * New upstream release (Closes: #193898)
+  * Mofided chntpw.c and Makefile (OPENSSL_DES_LIBDES_COMPATIBILITY)
+    in order to be able to compile it with (sid provides 0.97b).
+    Note: This might not work for OpenSSL 1.0, refer to 
+     /usr/include/openssl/des_old.h
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Sun, 25 May 2003 21:13:52 +0200
+
+chntpw (0.98.2-010107-2) unstable; urgency=low
+
+  * Fixed lintian warning 
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Tue, 22 Apr 2003 01:17:29 +0200
+
+chntpw (0.98.2-010107-1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Javier Fernandez-Sanguino Pen~a <jfs@computer.org>  Thu, 30 May 2002 00:27:47 +0200
+
+
