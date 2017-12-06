@@ -1,0 +1,12 @@
+samusrgrp.c: Interactive TYPO
+--- a/samusrgrp.c
++++ b/samusrgrp.c
+@@ -1,7 +1,7 @@
+ /*
+  * samusrgrp.c - SAM database, add or remove user in a group
+  * 
+- * Command line utility, non-inreractive to add or remove a user to/from
++ * Command line utility, non-interactive to add or remove a user to/from
+  * a local group in the SAM database, list groups with memberships etc
+  *
+  * When run as:

@@ -9,3 +9,7 @@
 09_improve_robustness
 10_remove_static
 11_improve_documentation
+12_samusrgrp.c_interactive_typo
+13_sampasswd.c_improved_its_definition
+14_added_samunlock_binary
+15_sampasswd_write_hive_fix

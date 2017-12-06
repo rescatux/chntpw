@@ -1,3 +1,18 @@
+chntpw (1.0-2) unstable; urgency=low
+
+  * debian/patches/12_samusrgrp.c_interactive_typo:
+        interactive typo in the source code
+  * debian/patches/13_sampasswd.c_improved_its_definition
+        Sampasswd definition was improved
+  * debian/patches/14_added_samunlock_binary
+        New samunlock binary (SAM database, unlock a user)
+  * debian/patches/15_sampasswd_write_hive_fix
+        sampasswd binary was fixed so that it actually writes its hive in non
+        interactive mode. 
+  * debian/samunlock.8: Write manpage for the new samunlock program
+
+ -- Adrian Gibanel Lopez <adrian15sgd@gmail.com>  Wed, 06 Dec 2017 09:49:52 +0000
+
 chntpw (1.0-1) unstable; urgency=low
 
   * Update to latest upstream release, published in 2014-02-01

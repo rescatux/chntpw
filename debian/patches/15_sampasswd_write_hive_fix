@@ -1,0 +1,13 @@
+sampasswd: Now it does work because we actually write the
+ Hive as we were not doing before
+--- a/sampasswd.c
++++ b/sampasswd.c
+@@ -243,7 +243,7 @@
+ 
+   wret = 0;
+   for (il = 0; il < no_hives; il++) {
+-    //    wret |= writeHive(hive[il]);
++    wret |= writeHive(hive[il]);
+     if (hive[il]->state & HMODE_DIDEXPAND)
+       fprintf(stderr," WARNING: Registry file %s was expanded! Experimental! Use at own risk!\n",hive[il]->filename);  
+     while (no_hives > 0)

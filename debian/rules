@@ -51,6 +51,7 @@ install: build
 	install -m 755 reged $(CURDIR)/debian/chntpw/usr/sbin/
 	install -m 755 sampasswd $(CURDIR)/debian/chntpw/usr/sbin/
 	install -m 755 samusrgrp $(CURDIR)/debian/chntpw/usr/sbin/
+	install -m 755 samunlock $(CURDIR)/debian/chntpw/usr/sbin/
 
 
 binary-indep: build-indep install
@@ -64,7 +65,7 @@ binary-arch: build-arch install
 	[ ! -f faq.html ] || dh_installdocs faq.html bootdisk.html *.gif
 	dh_installdocs
 	dh_installexamples
-	dh_installman debian/chntpw.8 debian/samusrgrp.8 debian/reged.8 debian/sampasswd.8
+	dh_installman debian/chntpw.8 debian/samusrgrp.8 debian/reged.8 debian/sampasswd.8 debian/samunlock.8
 	dh_installchangelogs HISTORY.txt
 	dh_link
 	dh_strip
