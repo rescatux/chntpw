@@ -281,6 +281,8 @@ int sam_get_grp_members_sid(struct hive *hdesc, int grp, struct sid_array **sarr
 int sam_put_grp_members_sid(struct hive *hdesc, int grp, struct sid_array *sarray);
 struct keyval *sam_get_user_grpids(struct hive *hdesc, int rid);
 int sam_put_user_grpids(struct hive *hdesc, int rid, struct keyval *val);
+int sam_add_sid_to_grp(struct hive *hdesc, struct sid_binary * sid, int grp);
+int sam_remove_sid_from_grp(struct hive *hdesc, struct sid_binary * sid, int grp);
 int sam_add_user_to_grp(struct hive *hdesc, int rid, int grp);
 int sam_remove_user_from_grp(struct hive *hdesc, int rid, int grp);
 char *sam_get_username(struct hive *hdesc, int rid);

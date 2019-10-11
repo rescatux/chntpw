@@ -528,10 +528,14 @@ int sam_put_grp_members_sid(struct hive *hdesc, int grp, struct sid_array *sarra
     sidptr = &cd->data[mofs];
 
     for (i = 0; sarray[i].sidptr; i++) {
-      if (gverbose) printf("  copying : %d len %x, at %x\n",i,sarray[i].len, (unsigned int)sidptr);
-      str = sam_sid_to_string(sarray[i].sidptr);
-      if (gverbose) printf("  Member # %d = <%s>\n", i, str);
-      FREE(str);      
+      if (gverbose)
+      {
+          printf("  copying : %d len %x, at %x\n",i,sarray[i].len, (unsigned int)sidptr);
+          str = sam_sid_to_string(sarray[i].sidptr);
+          printf("  Member # %d = <%s>\n", i, str);
+          FREE(str);
+      }
+
       memcpy(sidptr, sarray[i].sidptr, sarray[i].len);
       sidptr += sarray[i].len;
     }
@@ -839,6 +843,178 @@ int sam_put_user_grpids(struct hive *hdesc, int rid, struct keyval *val)
 
 /********* GROUP / USER MANIPULATION ROUTINES **************/
 
+/* Add SID to a group
+ * SID = any SID
+ * grp = group ID
+ * return true if success
+ */
+
+int sam_add_sid_to_grp(struct hive *hdesc, struct sid_binary * sid, int grp)
+{
+    struct sid_array *sarray, *narray;
+    struct sid_binary *usid = sid;
+    int members, newmembers;
+    char *str;
+    int o, n, hit, c;
+
+    if (!sid || !grp || (hdesc->type !=HTYPE_SAM) ) return(0);
+
+    if (gverbose)
+    {
+        str = sam_sid_to_string(usid);
+        printf("sam_add_sid_to_grp: user SID is <%s>\n", str);
+        free(str);
+    }
+
+    /* Just add SID to group, SID without RID situation like AD users
+     */
+
+    members = sam_get_grp_members_sid(hdesc, grp, &sarray);
+
+    if (!sarray) {
+      printf("sam_add_sid_to_grp: group # %x not found!\n",grp);
+      return(0);
+    }
+    if (gverbose)
+    {
+        printf("add_user_to_grp: grp memberlist BEFORE:\n");
+
+        for (o = 0; sarray[o].sidptr; o++)
+        {
+            str = sam_sid_to_string(sarray[o].sidptr);
+            printf("  Member # %d = <%s>\n", o, str);
+            FREE(str);
+            }
+    }
+
+    newmembers = members + 1;
+    ALLOC(narray, sizeof(struct sid_array) * (newmembers + 2), 1);  /* Add one entry size */
+
+    if (gverbose) printf("members = %d\n", members);
+
+    hit = 0;
+    for (o = 0, n = 0; o <= members; o++, n++) {
+      c = sam_sid_cmp(sarray[o].sidptr, usid);     /* Compare slot with new SID */
+      if (gverbose) printf("sam_sid_cmp returns %d\n",c);
+      if (c == 0) {
+        newmembers--;                   /* Already there, don't change anything */
+        hit = 1;
+      }
+      if (!hit && ((c > 0) || !sarray[o].sidptr)) {              /* Next is higher, insert new SID */
+        if (gverbose) printf("  -- add\n");
+        narray[n].len = usid->sections * 4 + 8;     /* Hmm */
+        narray[n].sidptr = usid;
+        n++;
+        hit = 1;
+      }
+      narray[n].len = sarray[o].len;
+      narray[n].sidptr = sarray[o].sidptr;
+    }
+
+    if (gverbose)
+    {
+        printf("sam_add_sid_to_grp: grp memberlist AFTER:\n");
+
+        for (o = 0; narray[o].sidptr; o++)
+        {
+            str = sam_sid_to_string(narray[o].sidptr);
+            printf("  Member # %u = <%s>\n", o, str);
+           FREE(str);
+        }
+    }
+
+    if ( !sam_put_grp_members_sid(hdesc, grp, narray) )
+    {
+        fprintf(stderr,"sam_add_sid_to_grp: failed storing groups user list\n");
+        sam_free_sid_array(narray);
+        FREE(sarray);
+        return(0);
+    }
+    sam_free_sid_array(narray);
+    FREE(sarray);     /* Pointers was copied to narray, and freed above, just free the array here */
+
+    return(1);
+}
+
+/* Remove SID from a group
+ * SID = any SID
+ * grp = group ID
+ * return true if success
+ */
+
+int sam_remove_sid_from_grp(struct hive *hdesc, struct sid_binary * sid, int grp)
+{
+    struct sid_array *sarray, *narray;
+    struct sid_binary *usid = sid;
+    int members, newmembers;
+    char *str;
+    int o, n, hit, c;
+
+    if (!sid || !grp || (hdesc->type !=HTYPE_SAM) ) return(0);
+
+    members = sam_get_grp_members_sid(hdesc, grp, &sarray);
+
+    if (!sarray) {
+      printf("sam_remove_sid_from_grp: group # %x not found!\n",grp);
+      return(0);
+    }
+
+    /* Remove the user SID from the groups list of members */
+
+    if (gverbose)
+    {
+        printf("sam_remove_sid_from_grp: grp memberlist BEFORE:\n");
+        for (o = 0; sarray[o].sidptr; o++)
+        {
+            str = sam_sid_to_string(sarray[o].sidptr);
+            printf("  Member # %d = <%s>\n", o, str);
+            FREE(str);
+        }
+    }
+
+    newmembers = members;
+    ALLOC(narray, sizeof(struct sid_array) * (newmembers + 2), 1);
+
+    if (gverbose) printf("members = %d\n", members);
+
+    hit = 0;
+    for (o = 0, n = 0; o <= members; o++, n++) {
+      c = sam_sid_cmp(sarray[o].sidptr, usid);     /* Compare slot with new SID */
+      if (gverbose) printf("sid_cmp returns %d\n",c);
+      if (c == 0) {
+        newmembers--;                   /* Found, skip copy and decrease list size */
+        hit = 1;
+        n--;
+      } else {
+        narray[n].len = sarray[o].len;        /* Copy entry */
+        narray[n].sidptr = sarray[o].sidptr;
+      }
+    }
+    if (!hit) fprintf(stderr, "sam_remove_sid_from_grp: NOTE: user not in groups list of users, may mean user was not member at all. Does not matter, continuing.\n");
+
+    if (gverbose)
+    {
+        printf("sam_remove_sid_from_grp: grp memberlist AFTER:\n");
+
+        for (o = 0; narray[o].sidptr; o++)
+        {
+            str = sam_sid_to_string(narray[o].sidptr);
+            printf("  Member # %u = <%s>\n", o, str);            
+            FREE(str);
+        }
+    }
+    if ( !sam_put_grp_members_sid(hdesc, grp, narray) )
+    {
+        fprintf(stderr,"sam_remove_sid_from_grp: failed storing groups user list\n");
+        sam_free_sid_array(narray);
+        FREE(sarray);
+        return(0);
+    }
+    sam_free_sid_array(narray);
+    FREE(sarray);     /* Pointers was copied to narray, and freed above, just free the array here */
+
+    return(1);
+}
 
 /* Add user to a group
  * rid = user RID
