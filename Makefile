@@ -28,34 +28,32 @@ LIBS=-L$(OSSLLIB)
 
 all: chntpw chntpw.static cpnt reged reged.static samusrgrp samusrgrp.static sampasswd sampasswd.static
 
-chntpw: chntpw.o ntreg.o edlib.o libsam.o
-	$(CC) $(CFLAGS) -o chntpw chntpw.o ntreg.o edlib.o libsam.o $(LIBS)
+chntpw: chntpw.o ntreg.o edlib.o libsam.o unicode.o
+	$(CC) $(CFLAGS) -o chntpw chntpw.o ntreg.o edlib.o libsam.o unicode.o $(LIBS)
 
-chntpw.static: chntpw.o ntreg.o edlib.o libsam.o
-	$(CC) -static $(CFLAGS) -o chntpw.static chntpw.o ntreg.o edlib.o libsam.o $(LIBS)
+chntpw.static: chntpw.o ntreg.o edlib.o libsam.o unicode.o
+	$(CC) -static $(CFLAGS) -o chntpw.static chntpw.o ntreg.o edlib.o libsam.o unicode.o $(LIBS)
 
 cpnt: cpnt.o
 	$(CC) $(CFLAGS) -o cpnt cpnt.o $(LIBS)
 
-reged: reged.o ntreg.o edlib.o
-	$(CC) $(CFLAGS) -o reged reged.o ntreg.o edlib.o
+reged: reged.o ntreg.o edlib.o unicode.o
+	$(CC) $(CFLAGS) -o reged reged.o ntreg.o edlib.o unicode.o
 
-reged.static: reged.o ntreg.o edlib.o
-	$(CC) -static $(CFLAGS) -o reged.static reged.o ntreg.o edlib.o
+reged.static: reged.o ntreg.o edlib.o unicode.o
+	$(CC) -static $(CFLAGS) -o reged.static reged.o ntreg.o edlib.o unicode.o
 
-samusrgrp.static: samusrgrp.o ntreg.o libsam.o
-	$(CC) -static $(CFLAGS) -o samusrgrp.static samusrgrp.o ntreg.o libsam.o 
+samusrgrp.static: samusrgrp.o ntreg.o libsam.o unicode.o
+	$(CC) -static $(CFLAGS) -o samusrgrp.static samusrgrp.o ntreg.o libsam.o unicode.o
 
-samusrgrp: samusrgrp.o ntreg.o libsam.o
-	$(CC) $(CFLAGS) -o samusrgrp samusrgrp.o ntreg.o libsam.o 
+samusrgrp: samusrgrp.o ntreg.o libsam.o unicode.o
+	$(CC) $(CFLAGS) -o samusrgrp samusrgrp.o ntreg.o libsam.o unicode.o
 
-sampasswd: sampasswd.o ntreg.o libsam.o
-	$(CC) $(CFLAGS) -o sampasswd sampasswd.o ntreg.o libsam.o 
+sampasswd: sampasswd.o ntreg.o libsam.o unicode.o unicode.o
+	$(CC) $(CFLAGS) -o sampasswd sampasswd.o ntreg.o libsam.o unicode.o
 
-sampasswd.static: sampasswd.o ntreg.o libsam.o
-	$(CC) -static $(CFLAGS) -o sampasswd.static sampasswd.o ntreg.o libsam.o 
-
-
+sampasswd.static: sampasswd.o ntreg.o libsam.o unicode.o
+	$(CC) -static $(CFLAGS) -o sampasswd.static sampasswd.o ntreg.o libsam.o unicode.o
 
 #ts: ts.o ntreg.o
 #	$(CC) $(CFLAGS) -nostdlib -o ts ts.o ntreg.o $(LIBS)

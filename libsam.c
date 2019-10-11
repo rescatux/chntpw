@@ -511,7 +511,7 @@ int sam_put_grp_members_sid(struct hive *hdesc, int grp, struct sid_array *sarra
 
      if (gverbose) printf("put_grp_members_sid: ajusted: mofs = %x, mlen = %x (%d)\n", mofs + 0x34 ,mlen,mlen);
 
-     if (gverbose) hexdump(&c->data, 0, c->len, 1);
+     if (gverbose) hexdump((char *)&(c->data), 0, c->len, 1);
 
     /* Get total size of new SID data */
 
@@ -528,7 +528,7 @@ int sam_put_grp_members_sid(struct hive *hdesc, int grp, struct sid_array *sarra
     sidptr = &cd->data[mofs];
 
     for (i = 0; sarray[i].sidptr; i++) {
-      if (gverbose) printf("  copying : %d len %x, at %x\n",i,sarray[i].len, sidptr);
+      if (gverbose) printf("  copying : %d len %x, at %x\n",i,sarray[i].len, (unsigned int)sidptr);
       str = sam_sid_to_string(sarray[i].sidptr);
       if (gverbose) printf("  Member # %d = <%s>\n", i, str);
       FREE(str);      
@@ -539,7 +539,7 @@ int sam_put_grp_members_sid(struct hive *hdesc, int grp, struct sid_array *sarra
     cd->members_len = sidlen;  /* Update member count in C struct */
     cd->grp_members = i;
 
-    if (gverbose) hexdump(&c->data, 0, c->len, 1);
+    if (gverbose) hexdump((char *)&(c->data), 0, c->len, 1);
 
     if (!put_buf2val(hdesc, c, 0, g, 0, TPF_VK_EXACT)) {
       fprintf(stderr,"put_grp_members_sid: could not write back group info in value %s\n",g);
