@@ -125,11 +125,101 @@ int cmd_usrgrp(char *user, char *grp, int what, int human)
 
 }
 
+int cmd_usrgrp_sid(char * parsing_sid, char *grp, int what, int human)
+{
+    long ret;
+    int sid_sections = 0;
+    int numgrp;
+    struct sid_binary * sid;
+    ALLOC(sid, sizeof(struct sid_binary), 1);
+    memset(sid, 0x00, sizeof(struct sid_binary));
+    char * current_sid_ptr = parsing_sid + 2;
+    char * current_separator = current_sid_ptr;
+
+    numgrp = strtol(grp, NULL, 0);
+
+    if ( memcmp( parsing_sid, "S-", 2 ) )
+    {
+        printf("Wrong SID start\n");
+        return 0;
+    }
+
+    while (current_separator)
+    {
+        current_separator = strchr(current_sid_ptr, '-');
+        if ( current_separator )
+            *current_separator = 0;
+
+        ret = atol(current_sid_ptr);
+        if ( ret > 0 )
+        {
+            switch (sid_sections) {
+            case 0:
+                if ( ret > 255 )
+                {
+                    fprintf(stderr, "ERROR: SID revision more than 255\n");
+                    free(sid);
+                    return 0;
+                }
+                sid->revision   = ret;
+                break;
+            case 1:
+                if ( ret > 255 )
+                {
+                    fprintf(stderr, "ERROR: SID authority more than 255\n");
+                    free(sid);
+                    return 0;
+                }
+                sid->authority  = ret;
+                break;
+            default:
+                if ( ret > 4294967295 )
+                {
+                    fprintf(stderr, "ERROR: SID section value more than 4294967295\n");
+                    free(sid);
+                    return 0;
+                }
+                sid->array[sid->sections]   = ret;
+                sid->sections++;
+                break;
+            }
+            current_sid_ptr = current_separator + 1;
+            sid_sections++;
+            if ( sid_sections > 10 )
+            {
+                fprintf(stderr, "ERROR: SID sections more than 8\n");
+                free(sid);
+                return 0;
+            }
+
+            if ( ( current_separator == NULL ) && ( sid->sections == 0 ) )
+            {
+                fprintf(stderr, "ERROR: SID sections less than 1\n");
+                free(sid);
+                return 0;
+            }
+        }
+        else
+        {
+            fprintf(stderr, "ERROR: SID section parsing Error\n");
+            free(sid);
+            return 0;
+        }
+    }
+    switch (what)
+    {
+        case 1: return( !sam_add_sid_to_grp( hive[H_SAM], sid, numgrp)); break;
+        case 2: return( !sam_remove_sid_from_grp( hive[H_SAM], sid, numgrp)); break;
+    }
+
+    free(sid);
+    return 1;
+}
 
 
 void usage(void)
 {
-  printf(" [-a|-r] -u <user> -g <groupid> <samhive>\n"
+  printf(" [-a|-r] [-u <user>|-S <sid>] -g <groupid> <samhive>\n"
 	 "Add or remove a (local) user to/from a group\n"
          "Mode:"
 	 "   -a = add user to group\n"
@@ -139,9 +229,11 @@ void usage(void)
 	 "   -s = Print machine SID\n"
          "Parameters:\n"
          "   <user> can be given as a username or a RID in hex with 0x in front\n"
-	 "   <group> is the group number, in hex with 0x in front\n"
+         "   <group> is the group number, in hex with 0x in front\n"
+         "   <sid> is the SID number, in  with 0x in front\n"
          "   Example:\n"
          "   -a -u theboss -g 0x220 -> add user named 'theboss' group hex 220 (administrators)\n"
+         "   -a -S S-1-5-21-229-324-890-511 -g 0x220 -> add user SID 'S-1-5-21-229-324-890-511' group hex 221 (users)\n"
          "   -a -u 0x3ea -g 0x221 -> add user with RID (hex) 3ea group hex 221 (users)\n"
          "   -r -u 0x3ff -g 0x220 -> remove user RID 0x3ff from grp 0x220\n"
          "   Usernames with international characters usually fails to be found,\n"
@@ -174,13 +266,15 @@ int main(int argc, char **argv)
   int m = 0;
   int list = 0;
   int human = 0;
+  int use_sid = 0;
   int ret, wret, il;
   char *hivename;
   char c;
   char *usr = NULL;
   char *grp = NULL;
+  char *sid = NULL;
 
-  char *options = "aru:g:vNEthlLHs";
+  char *options = "aru:g:S:vNEthlLHs";
   
   if (!strcmp(argv[0],"samusrtogrp")) what = 1;
   if (!strcmp(argv[0],"samusrfromgrp")) what = 2;
@@ -195,6 +289,7 @@ int main(int argc, char **argv)
     case 's': list = 3; m++; break;  /* Print machine sid */
     case 'u': usr = optarg; break;
     case 'g': grp = optarg; break;
+    case 'S': sid = optarg; break;
     case 'H': human = 1; break;
     case 'v': mode |= HMODE_VERBOSE; gverbose = 1; break;
     case 'N': mode |= HMODE_NOALLOC; break;
@@ -217,9 +312,34 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  if (!list && (!usr || !grp || !*usr || !*grp) ) {
-    fprintf(stderr,"%s: ERROR: Both -u and -g must be specified.\n",argv[0]);
-    exit(1);
+  if ( list == 0 )
+  {
+      if ( !grp || !*grp )
+      {
+          fprintf(stderr,"%s: ERROR: -g must be specified with -a or -r.\n",argv[0]);
+          exit(1);
+      }
+
+      if ( ( sid && usr ) || ( !sid && !usr ) )
+      {
+          fprintf(stderr,"%s: ERROR: -u or -S must be specified with -a or -r.\n",argv[0]);
+          exit(1);
+      }
+
+      if ( sid && !*sid )
+      {
+          fprintf(stderr,"%s: ERROR: SID must be specified with -S.\n",argv[0]);
+          exit(1);
+      }
+
+      if ( usr && !*usr )
+      {
+          fprintf(stderr,"%s: ERROR: SID must be specified with -S.\n",argv[0]);
+          exit(1);
+      }
+
+      if ( sid ) use_sid = 1;
+      if ( usr ) use_sid = 0;
   }
 
 
@@ -271,7 +391,10 @@ int main(int argc, char **argv)
       sam_list_groups(hive[H_SAM], list - 1, human);
       ret = 0;
     } else {
-      ret = cmd_usrgrp(usr, grp, what, human);
+      if ( use_sid )
+        ret = cmd_usrgrp_sid(sid, grp, what, human);
+      else
+        ret = cmd_usrgrp(usr, grp, what, human);
       if (!ret && human) printf("Success!\n");
     }
   }
