@@ -81,6 +81,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <stdarg.h>
+#include "unicode.h"
 
 #include "ntreg.h"
 
@@ -306,11 +307,19 @@ int get_int( char *array )
 
 void cheap_uni2ascii(char *src, char *dest, int l)
 {
-   
-   for (; l > 0; l -=2) {
-      *dest = *src;
-      dest++; src +=2;
-   }
+    uint8_t utf8[5];
+    uint16_t* usc = (uint16_t*)src;
+    int8_t  ret_code;
+
+    for (int a = 0; a < l/2; ++a)
+    {
+        ret_code = ucs2_to_utf8(usc[a], utf8);
+        if ( ret_code > 0 )
+        {
+            memcpy(dest, utf8, ret_code);
+            dest+= ret_code;
+        }
+    }
    *dest = 0;
 }
 
@@ -319,11 +328,19 @@ void cheap_uni2ascii(char *src, char *dest, int l)
 
 void cheap_ascii2uni(char *src, char *dest, int l)
 {
-   for (; l > 0; l--) {
-      *dest++ = *src++;
-      *dest++ = 0;
-
-   }
+    uint16_t* dest_16   = (uint16_t *)dest;
+    char* src_origin    = src;
+    int32_t return_unicode;
+    uint32_t num        = 0;
+    do {
+        src = src_origin; //move start byte pointer
+        return_unicode = utf8_to_ucs2((const uint8_t *)src, (const uint8_t **)&src_origin);
+        if ( ( return_unicode < 0xFFFF ) && ( return_unicode > 0 ) )
+        {
+            dest_16[num] = (uint16_t)return_unicode;
+            num++;
+        }
+    } while (src != src_origin);
 }
 
 void skipspace(char **c)
